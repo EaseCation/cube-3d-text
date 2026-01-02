@@ -1,6 +1,6 @@
 // src/components/TextSettingsPanel.tsx
 import React, { useState } from "react";
-import { Form, Input, Slider, Segmented, Flex, InputNumber } from "antd";
+import { Form, Input, Slider, Segmented, Flex, InputNumber, Collapse } from "antd";
 import { TextOptions } from "../types/text";
 import TextSettingsMaterialPanel from "./TextSettingsMaterialPanel.tsx";
 import TextSettingsMaterialPresets from "./TextSettingsMaterialPresets.tsx";
@@ -256,28 +256,44 @@ const TextSettingsPanel: React.FC<TextSettingsPanelProps> = ({
                     />
                 </Flex>
             </Form.Item>
-            <Form.Item label={gLang('texture')} layout={'vertical'}>
-                <Flex gap={'small'} vertical>
-                    <Segmented value={materialType} options={[{label: gLang('preset'), value: 'preset'}, {label: gLang('custom'), value: 'custom'}]} block onChange={setMaterialType} />
-                    {(materialType === 'preset') ? (
-                        <TextSettingsMaterialPresets
-                            materials={textOptions.materials}
-                            onMaterialsChange={(materials) => onTextOptionsChange({...textOptions, materials})}
-                        />
-                    ) : (
-                        <TextSettingsMaterialPanel
-                            materials={textOptions.materials}
-                            onMaterialsChange={(materials) => onTextOptionsChange({...textOptions, materials})}
-                        />
-                    )}
-                </Flex>
-            </Form.Item>
-            <Form.Item label={gLang('overlay.title')} layout="vertical">
-                <TextSettingsOverlayPanel
-                    overlay={textOptions.overlay}
-                    setOverlay={(overlay) => onTextOptionsChange({...textOptions, overlay})}
-                />
-            </Form.Item>
+            <Collapse
+                defaultActiveKey={['texture']}
+                ghost
+                size="small"
+                style={{ marginLeft: -8, marginRight: -8 }}
+                items={[
+                    {
+                        key: 'texture',
+                        label: gLang('texture'),
+                        children: (
+                            <Flex gap={'small'} vertical>
+                                <Segmented value={materialType} options={[{label: gLang('preset'), value: 'preset'}, {label: gLang('custom'), value: 'custom'}]} block onChange={setMaterialType} />
+                                {(materialType === 'preset') ? (
+                                    <TextSettingsMaterialPresets
+                                        materials={textOptions.materials}
+                                        onMaterialsChange={(materials) => onTextOptionsChange({...textOptions, materials})}
+                                    />
+                                ) : (
+                                    <TextSettingsMaterialPanel
+                                        materials={textOptions.materials}
+                                        onMaterialsChange={(materials) => onTextOptionsChange({...textOptions, materials})}
+                                    />
+                                )}
+                            </Flex>
+                        )
+                    },
+                    {
+                        key: 'overlay',
+                        label: gLang('overlay.title'),
+                        children: (
+                            <TextSettingsOverlayPanel
+                                overlay={textOptions.overlay}
+                                setOverlay={(overlay) => onTextOptionsChange({...textOptions, overlay})}
+                            />
+                        )
+                    }
+                ]}
+            />
         </>
     );
 };
