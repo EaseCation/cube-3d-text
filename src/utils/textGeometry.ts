@@ -261,7 +261,7 @@ export function createSpacedTextGeometry({
             charWidth = charGeometry.boundingBox
                 ? (charGeometry.boundingBox.max.x - charGeometry.boundingBox.min.x)
                 : size;
-        } catch (error) {
+        } catch {
             // 如果字体不支持该字符，使用占位符
             console.warn(`字体不支持字符 "${char}"，使用占位符替代`);
             unsupportedChars.add(char);
@@ -392,7 +392,7 @@ export const createSpacedTextGeometryOutline = ({
                 charShapes = createPlaceholderOutlineShape(size, outlineWidth);
                 isPlaceholder = true;
             }
-        } catch (error) {
+        } catch {
             // 字体不支持该字符，使用占位符描边
             console.warn(`字体不支持字符 "${char}"，使用占位符描边`);
             charShapes = createPlaceholderOutlineShape(size, outlineWidth);
@@ -525,7 +525,7 @@ export function createTextShapes2D(params: {
                 offsetX += charWidth + letterSpacing * spacing;
                 continue;
             }
-        } catch (error) {
+        } catch {
             // 字体不支持该字符，使用占位符矩形
             console.warn(`字体不支持字符 "${char}"，使用占位符形状`);
             shapes.push(createPlaceholder2DShape(offsetX, size));

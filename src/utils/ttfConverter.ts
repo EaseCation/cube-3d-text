@@ -12,6 +12,32 @@ export interface ConvertResult {
     data: string;
 }
 
+interface TypefaceGlyph {
+    ha: number;
+    x_min: number;
+    x_max: number;
+    o: string;
+}
+
+interface TypefaceResult {
+    glyphs: Record<string, TypefaceGlyph>;
+    familyName?: opentype.LocalizedName;
+    ascender?: number;
+    descender?: number;
+    underlinePosition?: number;
+    underlineThickness?: number;
+    boundingBox?: {
+        yMin: number;
+        xMin: number;
+        yMax: number;
+        xMax: number;
+    };
+    resolution?: number;
+    original_font_information?: unknown;
+    cssFontWeight?: "bold" | "normal";
+    cssFontStyle?: "italic" | "normal";
+}
+
 /**
  * 将 TTF 文件解析并转换为 facetype.js 格式的对象，最后序列化为字符串
  * @param arrayBuffer TTF流
@@ -62,8 +88,7 @@ function convert(
     }: ConvertOptions
 ) {
     const scale = (1000 * 100) / ((font.unitsPerEm || 2048) * 72);
-    const result: any = {};
-    result.glyphs = {};
+    const result: TypefaceResult = { glyphs: {} };
 
     // 限制字符
     const restriction = {
@@ -115,29 +140,30 @@ function convert(
             }
 
             if (needToExport) {
-                const token: any = {};
-                token.ha = Math.round((glyph.advanceWidth ?? 0) * scale);
-                token.x_min = Math.round((glyph.xMin ?? 0) * scale);
-                token.x_max = Math.round((glyph.xMax ?? 0) * scale);
-                token.o = "";
+                const token: TypefaceGlyph = {
+                    ha: Math.round((glyph.advanceWidth ?? 0) * scale),
+                    x_min: Math.round((glyph.xMin ?? 0) * scale),
+                    x_max: Math.round((glyph.xMax ?? 0) * scale),
+                    o: "",
+                };
 
                 // 如果需要反转
                 const commands = reverseTypeface
                     ? reverseCommands(glyph.path.commands)
                     : glyph.path.commands;
 
-                commands.forEach((command: any) => {
+                commands.forEach((command: opentype.PathCommand) => {
                     const cmdType = command.type.toLowerCase() === "c" ? "b" : command.type.toLowerCase();
                     token.o += cmdType + " ";
-                    if (command.x !== undefined && command.y !== undefined) {
+                    if ("x" in command && "y" in command) {
                         token.o += Math.round(command.x * scale) + " ";
                         token.o += Math.round(command.y * scale) + " ";
                     }
-                    if (command.x1 !== undefined && command.y1 !== undefined) {
+                    if ("x1" in command && "y1" in command) {
                         token.o += Math.round(command.x1 * scale) + " ";
                         token.o += Math.round(command.y1 * scale) + " ";
                     }
-                    if (command.x2 !== undefined && command.y2 !== undefined) {
+                    if ("x2" in command && "y2" in command) {
                         token.o += Math.round(command.x2 * scale) + " ";
                         token.o += Math.round(command.y2 * scale) + " ";
                     }
@@ -208,7 +234,7 @@ function reverseCommands(commands: opentype.PathCommand[]) {
 
         for (let i = p.length - 1; i > 0; i--) {
             const command = p[i];
-            const newCmd: any = { type: command.type };
+            const newCmd: Record<string, string | number> = { type: command.type };
 
             // Check for cubic and quadratic curves
             if (
@@ -233,7 +259,7 @@ function reverseCommands(commands: opentype.PathCommand[]) {
                 newCmd.y = last.y;
             }
 
-            reversed.push(newCmd);
+            reversed.push(newCmd as unknown as opentype.PathCommand);
         }
     });
 
