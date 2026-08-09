@@ -1,6 +1,7 @@
 import { WorkspaceData } from "../types/text";
 import { MessageInstance } from "antd/es/message/interface";
 import { builtinOverlayRenderers } from "./overlay";
+import { isTextMaterials } from "./materialSerializer";
 
 /**
  * 当前工作区数据版本
@@ -150,6 +151,44 @@ const versionUpgraders: Record<number, VersionUpgrader> = {
   // 1: (v1Data) => { /* v1 到 v2 的转换 */ }
 };
 
+const workspaceNumberFields = [
+  "size",
+  "depth",
+  "x",
+  "y",
+  "z",
+  "rotY",
+  "rotX",
+  "rotZ",
+  "outlineWidth",
+  "letterSpacing",
+  "spacingWidth"
+] as const;
+
+const isWorkspaceData = (value: unknown): value is WorkspaceData => {
+  if (!value || typeof value !== "object") return false;
+  const workspace = value as Record<string, unknown>;
+  if (typeof workspace.fontId !== "string" || !Array.isArray(workspace.texts)) {
+    return false;
+  }
+
+  return workspace.texts.every((textValue) => {
+    if (!textValue || typeof textValue !== "object") return false;
+    const text = textValue as Record<string, unknown>;
+    if (typeof text.content !== "string" ||
+        (text.fontId !== undefined && typeof text.fontId !== "string") ||
+        !text.opts ||
+        typeof text.opts !== "object") {
+      return false;
+    }
+
+    const opts = text.opts as Record<string, unknown>;
+    return workspaceNumberFields.every(
+      (field) => typeof opts[field] === "number" && Number.isFinite(opts[field])
+    ) && isTextMaterials(opts.materials);
+  });
+};
+
 /**
  * 将任何版本的数据升级到最新版本
  */
@@ -178,6 +217,9 @@ export function upgradeToLatest(jsonData: string, messageApi?: MessageInstance |
       workspaceData.texts.forEach((text) => {
         restoreOverlayField(text.opts);
       });
+      if (!isWorkspaceData(workspaceData)) {
+        throw new Error("Invalid workspace data structure");
+      }
       return workspaceData;
     }
     
@@ -195,6 +237,9 @@ export function upgradeToLatest(jsonData: string, messageApi?: MessageInstance |
       }
     }
     
+    if (!isWorkspaceData(workspaceData)) {
+      throw new Error("Invalid workspace data structure");
+    }
     return workspaceData;
   } catch (e) {
     const errorMsg = '无效的JSON数据格式' + e;

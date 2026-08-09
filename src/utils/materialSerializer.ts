@@ -1,4 +1,8 @@
-import { TextMaterials, TextMaterialImageOption } from "../types/text";
+import {
+  TextMaterials,
+  TextMaterialImageOption,
+  TextMaterialOption
+} from "../types/text";
 
 // 材质数据版本
 export enum MaterialVersion {
@@ -11,6 +15,54 @@ export interface SerializedMaterial {
   version: MaterialVersion;
   material: TextMaterials;
 }
+
+const materialFaces: Array<keyof TextMaterials> = [
+  "front",
+  "back",
+  "up",
+  "down",
+  "left",
+  "right",
+  "outline"
+];
+
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const isMaterialOption = (value: unknown): value is TextMaterialOption => {
+  if (!value || typeof value !== "object" || !("mode" in value)) return false;
+  const option = value as Record<string, unknown>;
+
+  switch (option.mode) {
+    case "color":
+      return typeof option.color === "string";
+    case "gradient":
+      return typeof option.colorGradualStart === "string" &&
+        typeof option.colorGradualEnd === "string" &&
+        isFiniteNumber(option.repeat) &&
+        isFiniteNumber(option.offset);
+    case "image":
+      return typeof option.image === "string" &&
+        isFiniteNumber(option.repeatX) &&
+        isFiniteNumber(option.repeatY) &&
+        isFiniteNumber(option.offsetX) &&
+        isFiniteNumber(option.offsetY);
+    default:
+      return false;
+  }
+};
+
+export const isTextMaterials = (value: unknown): value is TextMaterials => {
+  if (!value || typeof value !== "object") return false;
+  const material = value as Record<string, unknown>;
+  return materialFaces.every((face) => isMaterialOption(material[face]));
+};
+
+export const isSerializedMaterial = (value: unknown): value is SerializedMaterial => {
+  if (!value || typeof value !== "object") return false;
+  const serialized = value as Record<string, unknown>;
+  return isFiniteNumber(serialized.version) && isTextMaterials(serialized.material);
+};
 
 /**
  * 将图片URL转换为Base64编码

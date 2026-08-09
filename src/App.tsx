@@ -272,7 +272,6 @@ const AppContent: React.FC = () => {
                 },
             }}
         >
-            <MessageProvider>
                 <Modal
                     title={gLang('notice')}
                     open={chinaMirrorAlertModal}
@@ -641,18 +640,19 @@ const AppContent: React.FC = () => {
                         </Splitter.Panel>
                     )}
                 </Splitter>
-            </MessageProvider>
         </ConfigProvider>
     );
 };
 
 const App: React.FC = () => {
     return (
-        <FontProvider>
-            <MaterialProvider>
-                <AppContent />
-            </MaterialProvider>
-        </FontProvider>
+        <MessageProvider>
+            <FontProvider>
+                <MaterialProvider>
+                    <AppContent />
+                </MaterialProvider>
+            </FontProvider>
+        </MessageProvider>
     );
 };
 

@@ -9,6 +9,7 @@ interface ConvertOptions {
 
 export interface ConvertResult {
     names: opentype.FontNames,
+    fullName: string;
     data: string;
 }
 
@@ -37,6 +38,39 @@ interface TypefaceResult {
     cssFontWeight?: "bold" | "normal";
     cssFontStyle?: "italic" | "normal";
 }
+
+const getLocalizedName = (
+    names: opentype.FontNames,
+    key: keyof opentype.FontNames
+): opentype.LocalizedName | undefined => {
+    const nameData = names as unknown as Record<string, unknown>;
+    const candidates = [
+        nameData[key],
+        ...["windows", "macintosh", "unicode"].map((platform) => {
+            const platformNames = nameData[platform];
+            return platformNames && typeof platformNames === "object"
+                ? (platformNames as Record<string, unknown>)[key]
+                : undefined;
+        }),
+    ];
+
+    return candidates.find((candidate): candidate is opentype.LocalizedName => (
+        candidate !== null &&
+        typeof candidate === "object" &&
+        Object.values(candidate).some((value) => typeof value === "string")
+    ));
+};
+
+const getPreferredName = (
+    names: opentype.FontNames,
+    key: keyof opentype.FontNames
+): string | undefined => {
+    const localizedName = getLocalizedName(names, key);
+    if (!localizedName) return undefined;
+
+    return localizedName.en ??
+        Object.values(localizedName).find((value): value is string => typeof value === "string");
+};
 
 /**
  * 将 TTF 文件解析并转换为 facetype.js 格式的对象，最后序列化为字符串
@@ -68,6 +102,9 @@ export async function convertTTFtoFaceTypeJson(
             });
             resolve({
                 names: font.names,
+                fullName: getPreferredName(font.names, "fullName") ??
+                    getPreferredName(font.names, "fontFamily") ??
+                    "",
                 data: resultString
             }
             );
@@ -174,7 +211,7 @@ function convert(
         });
     }
 
-    result.familyName = font.names.fontFamily;
+    result.familyName = getLocalizedName(font.names, "fontFamily");
     result.ascender = Math.round(font.ascender * scale);
     result.descender = Math.round(font.descender * scale);
     result.underlinePosition = Math.round(font.tables.post.underlinePosition * scale);
@@ -188,13 +225,14 @@ function convert(
     result.resolution = 1000;
     result.original_font_information = font.tables.name;
 
-    if (font.names.fontSubfamily?.[0]?.toLowerCase().includes("bold")) {
+    const fontSubfamily = getPreferredName(font.names, "fontSubfamily")?.toLowerCase() ?? "";
+    if (fontSubfamily.includes("bold")) {
         result.cssFontWeight = "bold";
     } else {
         result.cssFontWeight = "normal";
     }
 
-    if (font.names.fontSubfamily?.[0]?.toLowerCase().includes("italic")) {
+    if (fontSubfamily.includes("italic")) {
         result.cssFontStyle = "italic";
     } else {
         result.cssFontStyle = "normal";

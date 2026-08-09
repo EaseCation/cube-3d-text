@@ -40,7 +40,7 @@ export const FontProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const arrayBuffer = await file.arrayBuffer();
       const data: ConvertResult = await convertTTFtoFaceTypeJson(arrayBuffer);
-      const fontName = data.names.fullName.en ?? "";
+      const fontName = data.fullName;
       if (!fontName.trim()) {
         messageApi?.warning(gLang("customFont.nameEmpty"));
         return undefined;
