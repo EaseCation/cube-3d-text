@@ -2,11 +2,12 @@ import * as THREE from "three";
 
 // Function to convert THREE.Texture to data URL
 const textureToDataURL = (texture: THREE.Texture): string => {
+    const image = texture.image as HTMLImageElement | HTMLCanvasElement;
     const canvas = document.createElement("canvas");
-    canvas.width = texture.image.width;
-    canvas.height = texture.image.height;
+    canvas.width = image.width;
+    canvas.height = image.height;
     const context = canvas.getContext("2d")!;
-    context.drawImage(texture.image, 0, 0);
+    context.drawImage(image, 0, 0);
     return canvas.toDataURL();
 };
 

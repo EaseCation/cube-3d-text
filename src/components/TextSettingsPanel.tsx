@@ -69,7 +69,7 @@ const TextSettingsPanel: React.FC<TextSettingsPanelProps> = ({
                 />
             </Form.Item>
 
-            <Form.Item label={gLang('position3D')}>
+            <Form.Item label={gLang('position3D')} layout="vertical">
                 <Position3DControl
                     x={textOptions.x}
                     y={textOptions.y}

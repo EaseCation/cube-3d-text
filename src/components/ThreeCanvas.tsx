@@ -31,6 +31,50 @@ function calculateCameraDistance(fov: number, isOrthographic: boolean): number {
     return CAMERA_CONSTANTS.referenceDistance * (CAMERA_CONSTANTS.referenceFOV / fov);
 }
 
+function configureCamera(
+    camera: THREE.Camera,
+    size: { width: number; height: number },
+    cameraOptions: CameraOptions
+) {
+    const { fov, cameraType = 'perspective', zoom = 1, userZoomFactor = 1 } = cameraOptions;
+
+    if (cameraType === 'orthographic' || fov === 0) {
+        if (!(camera instanceof THREE.OrthographicCamera)) {
+            console.warn("当前相机不是 OrthographicCamera，无法设置正交参数");
+            return;
+        }
+
+        const aspect = size.width / size.height;
+        camera.left = -CAMERA_CONSTANTS.frustumSize * aspect;
+        camera.right = CAMERA_CONSTANTS.frustumSize * aspect;
+        camera.top = CAMERA_CONSTANTS.frustumSize;
+        camera.bottom = -CAMERA_CONSTANTS.frustumSize;
+        camera.near = 0.1;
+        camera.far = CAMERA_CONSTANTS.minFar;
+        camera.zoom = zoom * userZoomFactor;
+        camera.updateProjectionMatrix();
+        return;
+    }
+
+    if (!(camera instanceof THREE.PerspectiveCamera)) {
+        console.warn("当前相机不是 PerspectiveCamera，无法设置 fov");
+        return;
+    }
+
+    camera.fov = fov;
+    camera.near = 0.1;
+
+    const currentDistance = camera.position.length();
+    const baseDistance = calculateCameraDistance(fov, false);
+    const targetDistance = baseDistance / userZoomFactor;
+    camera.position.multiplyScalar(targetDistance / currentDistance);
+    camera.far = Math.max(
+        targetDistance * CAMERA_CONSTANTS.farMultiplier,
+        CAMERA_CONSTANTS.minFar
+    );
+    camera.updateProjectionMatrix();
+}
+
 export interface ThreeCanvasHandle {
     takeScreenshot: () => void;
     resetCamera: () => void;
@@ -50,7 +94,7 @@ interface ThreeCanvasProps {
 const UserZoomTracker: React.FC<{
     cameraOptions: CameraOptions;
     setCameraOptions: (opts: CameraOptions) => void;
-    orbitRef: React.RefObject<OrbitControlsImpl>;
+    orbitRef: React.RefObject<OrbitControlsImpl | null>;
 }> = ({ cameraOptions, setCameraOptions, orbitRef }) => {
     const { camera } = useThree();
 
@@ -120,65 +164,105 @@ const CameraController: React.FC<{ cameraOptions: CameraOptions }> = ({ cameraOp
     const { camera, size } = useThree();
 
     useEffect(() => {
-        const { fov, cameraType = 'perspective', zoom = 1, userZoomFactor = 1 } = cameraOptions;
-
-        if (cameraType === 'orthographic' || fov === 0) {
-            // 切换到正交相机
-            if (!(camera instanceof THREE.OrthographicCamera)) {
-                console.warn("当前相机不是 OrthographicCamera，无法设置正交参数");
-                return;
-            }
-            // 设置正交相机的缩放 - 使用更大的视锥以匹配透视相机的视野
-            const aspect = size.width / size.height;
-            camera.left = -CAMERA_CONSTANTS.frustumSize * aspect;
-            camera.right = CAMERA_CONSTANTS.frustumSize * aspect;
-            camera.top = CAMERA_CONSTANTS.frustumSize;
-            camera.bottom = -CAMERA_CONSTANTS.frustumSize;
-            camera.near = 0.1;
-            camera.far = CAMERA_CONSTANTS.minFar;
-            camera.zoom = zoom * userZoomFactor; // 应用用户缩放因子
-            camera.updateProjectionMatrix();
-        } else {
-            // 透视相机模式 - 根据 FOV 自动调整相机距离以保持物体大小
-            if (camera instanceof THREE.PerspectiveCamera) {
-                camera.fov = fov;
-                camera.near = 0.1;
-
-                // 根据 FOV 调整相机位置，保持物体在屏幕上的视觉大小
-                const currentDistance = Math.sqrt(
-                    camera.position.x ** 2 +
-                    camera.position.y ** 2 +
-                    camera.position.z ** 2
-                );
-
-                // 计算基准距离：FOV 越小，需要越远的距离
-                const baseDistance = calculateCameraDistance(fov, false);
-
-                // 应用用户的缩放因子
-                const targetDistance = baseDistance / userZoomFactor;
-                const scale = targetDistance / currentDistance;
-
-                camera.position.multiplyScalar(scale);
-
-                // 动态调整 far 裁剪面，确保不会裁剪掉远处的物体
-                camera.far = Math.max(
-                    targetDistance * CAMERA_CONSTANTS.farMultiplier,
-                    CAMERA_CONSTANTS.minFar
-                );
-
-                camera.updateProjectionMatrix();
-            } else {
-                console.warn("当前相机不是 PerspectiveCamera，无法设置 fov");
-            }
-        }
+        configureCamera(camera, size, cameraOptions);
     }, [cameraOptions, camera, size]);
 
     return null;
 };
 
 interface ScreenshotProps {
-    orbitRef: React.RefObject<OrbitControlsImpl>;
+    orbitRef: React.RefObject<OrbitControlsImpl | null>;
 }
+
+interface ScreenBoundingBox {
+    minX: number;
+    minY: number;
+    width: number;
+    height: number;
+}
+
+interface CanvasToolsProps extends ScreenshotProps {
+    canvasRef: React.ForwardedRef<ThreeCanvasHandle>;
+    cameraOptions: CameraOptions;
+    setCameraOptions: (opts: CameraOptions) => void;
+    computeScreenBoundingBox: (
+        scene: THREE.Scene,
+        camera: THREE.Camera,
+        gl: THREE.WebGLRenderer
+    ) => ScreenBoundingBox | null;
+    onExportScene: (format: "glb" | "gltf" | "obj" | "stl") => void;
+}
+
+const CanvasTools: React.FC<CanvasToolsProps> = ({
+    canvasRef,
+    orbitRef,
+    cameraOptions,
+    setCameraOptions,
+    computeScreenBoundingBox,
+    onExportScene,
+}) => {
+    const { gl, scene, camera } = useThree();
+    const messageApi = useMessage();
+    const { gLang } = useLanguage();
+
+    useImperativeHandle(canvasRef, () => ({
+        takeScreenshot: () => {
+            gl.render(scene, camera);
+            const bounding = computeScreenBoundingBox(scene, camera, gl);
+            if (!bounding) {
+                messageApi?.warning(gLang('sceneEmptyCannotScreenshot'));
+                return;
+            }
+
+            let { minX, minY, width, height } = bounding;
+            const dpr = gl.getPixelRatio();
+            minX = Math.floor(minX * dpr);
+            minY = Math.floor(minY * dpr);
+            width = Math.floor(width * dpr);
+            height = Math.floor(height * dpr);
+
+            const fullDataURL = gl.domElement.toDataURL("image/png");
+            const croppedCanvas = document.createElement("canvas");
+            croppedCanvas.width = width;
+            croppedCanvas.height = height;
+            const ctx = croppedCanvas.getContext("2d")!;
+
+            const img = new Image();
+            img.onload = () => {
+                ctx.drawImage(img, minX, minY, width, height, 0, 0, width, height);
+                const croppedDataURL = croppedCanvas.toDataURL("image/png");
+                const link = document.createElement("a");
+                link.href = croppedDataURL;
+                link.download = "screenshot.png";
+                link.click();
+            };
+            img.src = fullDataURL;
+        },
+
+        resetCamera: () => {
+            orbitRef.current?.reset();
+            setCameraOptions({
+                ...cameraOptions,
+                userZoomFactor: 1
+            });
+
+            const { fov } = cameraOptions;
+            const isOrtho = isOrthographicCamera(cameraOptions);
+            const initialDistance = calculateCameraDistance(fov, isOrtho);
+            const positionScale = initialDistance / CAMERA_CONSTANTS.referenceDistance;
+            camera.position.set(0, -20 * positionScale, 50 * positionScale);
+            camera.lookAt(0, 0, 0);
+            camera.updateProjectionMatrix();
+        },
+
+        exportScene: (format) => {
+            gl.render(scene, camera);
+            onExportScene(format);
+        },
+    }));
+
+    return null;
+};
 
 const ThreeCanvas = forwardRef<ThreeCanvasHandle, ThreeCanvasProps>((props, ref) => {
     const { texts, cameraOptions, setCameraOptions, globalFontId, fontsMap, globalTextureYOffset } = props;
@@ -349,102 +433,6 @@ const ThreeCanvas = forwardRef<ThreeCanvasHandle, ThreeCanvasProps>((props, ref)
         }
     }
 
-    // 内部组件：提供给 ref 的方法
-    const CanvasToolsImpl: React.FC<ScreenshotProps> = ({ orbitRef }) => {
-        const { gl, scene, camera } = useThree();
-
-        useImperativeHandle(ref, () => ({
-            takeScreenshot: () => {
-                gl.render(scene, camera);
-                const bounding = computeScreenBoundingBox(scene, camera, gl);
-                if (!bounding) {
-                    messageApi?.warning(gLang('sceneEmptyCannotScreenshot'));
-                    return;
-                }
-
-                let { minX, minY, width, height } = bounding;
-                const dpr = gl.getPixelRatio();
-                minX = Math.floor(minX * dpr);
-                minY = Math.floor(minY * dpr);
-                width = Math.floor(width * dpr);
-                height = Math.floor(height * dpr);
-
-                // 全画面
-                const fullDataURL = gl.domElement.toDataURL("image/png");
-                const croppedCanvas = document.createElement("canvas");
-                croppedCanvas.width = width;
-                croppedCanvas.height = height;
-                const ctx = croppedCanvas.getContext("2d")!;
-
-                const img = new Image();
-                img.onload = () => {
-                    ctx.drawImage(img, minX, minY, width, height, 0, 0, width, height);
-                    const croppedDataURL = croppedCanvas.toDataURL("image/png");
-                    const link = document.createElement("a");
-                    link.href = croppedDataURL;
-                    link.download = "screenshot.png";
-                    link.click();
-                };
-                img.src = fullDataURL;
-            },
-
-            resetCamera: () => {
-                // 重置 OrbitControls
-                orbitRef.current?.reset();
-
-                // 重置用户缩放因子
-                setCameraOptions({
-                    ...cameraOptions,
-                    userZoomFactor: 1
-                });
-
-                // 根据当前 FOV 和相机类型计算正确的重置位置
-                const { fov } = cameraOptions;
-                const isOrtho = isOrthographicCamera(cameraOptions);
-                const initialDistance = calculateCameraDistance(fov, isOrtho);
-
-                // 计算位置比例
-                const positionScale = initialDistance / CAMERA_CONSTANTS.referenceDistance;
-                camera.position.set(
-                    0,
-                    -20 * positionScale,
-                    50 * positionScale
-                );
-                camera.lookAt(0, 0, 0);
-                camera.updateProjectionMatrix();
-            },
-
-            // ======== 多格式导出入口 ========
-            exportScene: (format) => {
-                if (!scene) {
-                    messageApi?.warning(gLang('sceneEmptyCannotExport'));
-                    return;
-                }
-                // 先渲染一次，确保最新
-                gl.render(scene, camera);
-
-                switch (format) {
-                    case "glb":
-                        exportGLTF("glb");
-                        break;
-                    case "gltf":
-                        exportGLTF("gltf");
-                        break;
-                    case "obj":
-                        exportOBJ();
-                        break;
-                    case "stl":
-                        exportSTL();
-                        break;
-                    default:
-                        console.warn(`不支持的导出格式: ${format}`);
-                }
-            },
-        }));
-
-        return null;
-    };
-
     const isOrthographic = isOrthographicCamera(cameraOptions);
 
     // 计算初始相机位置 - 根据 FOV 调整距离
@@ -460,6 +448,21 @@ const ThreeCanvas = forwardRef<ThreeCanvasHandle, ThreeCanvasProps>((props, ref)
     const initialFar = isOrthographic
         ? CAMERA_CONSTANTS.minFar
         : Math.max(initialDistance * CAMERA_CONSTANTS.farMultiplier, CAMERA_CONSTANTS.minFar);
+
+    const handleExportScene = (format: "glb" | "gltf" | "obj" | "stl") => {
+        switch (format) {
+            case "glb":
+            case "gltf":
+                void exportGLTF(format);
+                break;
+            case "obj":
+                exportOBJ();
+                break;
+            case "stl":
+                exportSTL();
+                break;
+        }
+    };
 
     return (
         <Canvas
@@ -489,7 +492,14 @@ const ThreeCanvas = forwardRef<ThreeCanvasHandle, ThreeCanvasProps>((props, ref)
             }}
             style={{ background: "transparent" }}
         >
-            <CanvasToolsImpl orbitRef={orbitRef} />
+            <CanvasTools
+                canvasRef={ref}
+                orbitRef={orbitRef}
+                cameraOptions={cameraOptions}
+                setCameraOptions={setCameraOptions}
+                computeScreenBoundingBox={computeScreenBoundingBox}
+                onExportScene={handleExportScene}
+            />
             <CameraController cameraOptions={cameraOptions} />
             <UserZoomTracker
                 cameraOptions={cameraOptions}

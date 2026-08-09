@@ -114,7 +114,9 @@ const AppContent: React.FC = () => {
 
     const [textPanelActiveKeys, setTextPanelActiveKeys] = useState<string[]>(['1']);
 
-    const [lastWorkshop, setLastWorkshop] = useState<WorkspaceData | null>(null);
+    const [lastWorkshop, setLastWorkshop] = useState<WorkspaceData | null>(
+        () => loadWorkspaceFromLocalStorage(messageApi)
+    );
 
     const threeCanvasRef = useRef<ThreeCanvasHandle>(null);
 
@@ -145,18 +147,18 @@ const AppContent: React.FC = () => {
         }
     }
 
-    useEffect(() => {
-        const workspace = loadWorkspaceFromLocalStorage(messageApi);
-        if (workspace) {
-            setLastWorkshop(workspace);
-        }
-    }, [messageApi]);
-
-    const [initTime] = useState<number>(Date.now());
+    const autosaveReadyRef = useRef(false);
 
     useEffect(() => {
-        const now = Date.now();
-        if (now - initTime < 5000) {
+        const timeoutId = window.setTimeout(() => {
+            autosaveReadyRef.current = true;
+        }, 5000);
+
+        return () => window.clearTimeout(timeoutId);
+    }, []);
+
+    useEffect(() => {
+        if (!autosaveReadyRef.current) {
             return;
         }
         const workspace: WorkspaceData = {
@@ -164,8 +166,9 @@ const AppContent: React.FC = () => {
             texts: texts
         };
         saveWorkspaceToLocalStorage(workspace, messageApi);
-        setLastWorkshop(null);
-    }, [globalFontId, texts, initTime, messageApi]);
+        const timeoutId = window.setTimeout(() => setLastWorkshop(null), 0);
+        return () => window.clearTimeout(timeoutId);
+    }, [globalFontId, texts, messageApi]);
 
     const handleAddText = () => {
         setTexts([

@@ -174,7 +174,8 @@ function reassignUVByNormal(geometry: THREE.BufferGeometry): void {
         const ny = normal.getY(i);
         const nz = normal.getZ(i);
 
-        let u = 0, v = 0;
+        let u: number;
+        let v: number;
 
         // 前后：Math.abs(nz) 是最大的
         if (Math.abs(nz) >= Math.abs(nx) && Math.abs(nz) >= Math.abs(ny)) {

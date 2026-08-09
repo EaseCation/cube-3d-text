@@ -33,18 +33,14 @@ export const MaterialProvider: React.FC<{ children: ReactNode }> = ({ children }
     collections: string[];
     loadedMaterials: Map<string, TextMaterials>;
   }>({
-    isLoading: false,
+    isLoading: true,
     error: null,
     collections: [],
     loadedMaterials: new Map()
   });
 
-  // 使用 useCallback 确保函数引用稳定，避免不必要的重渲染
+  // materialLoader 自身负责缓存和并发去重，因此回调不依赖 React 状态。
   const loadMaterials = useCallback(async () => {
-    if (state.collections.length > 0 && state.loadedMaterials.size > 0 && !state.error) {
-      return;
-    }
-
     setState(prev => ({ ...prev, isLoading: true, error: null }));
     try {
       // 加载材质索引
@@ -67,7 +63,7 @@ export const MaterialProvider: React.FC<{ children: ReactNode }> = ({ children }
         error: "cannotLoadMaterialFile"
       }));
     }
-  }, [state.collections.length, state.loadedMaterials.size, state.error]);
+  }, []);
 
   // 清除材质缓存 - 同样使用 useCallback 确保引用稳定
   const clearMaterialCache = useCallback(() => {
@@ -82,8 +78,35 @@ export const MaterialProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   // 组件首次加载时尝试加载材质
   useEffect(() => {
-    loadMaterials();
-    // 空依赖数组确保只在组件挂载时执行一次
+    let active = true;
+
+    materialLoader.loadIndex()
+      .then(async (collections) => ({
+        collections,
+        loadedMaterials: await materialLoader.loadAllMaterials()
+      }))
+      .then(({ collections, loadedMaterials }) => {
+        if (!active) return;
+        setState({
+          isLoading: false,
+          error: null,
+          collections,
+          loadedMaterials
+        });
+      })
+      .catch((err) => {
+        console.error("无法加载JSON材质:", err);
+        if (!active) return;
+        setState(prev => ({
+          ...prev,
+          isLoading: false,
+          error: "cannotLoadMaterialFile"
+        }));
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   // 构建上下文值

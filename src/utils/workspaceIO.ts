@@ -199,7 +199,7 @@ export function upgradeToLatest(jsonData: string, messageApi?: MessageInstance |
   } catch (e) {
     const errorMsg = '无效的JSON数据格式' + e;
     messageApi?.error(errorMsg);
-    throw new Error(errorMsg);
+    throw e;
   }
 }
 

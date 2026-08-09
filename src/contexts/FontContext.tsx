@@ -25,18 +25,13 @@ export const FontProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return stored ? JSON.parse(stored) : {};
   });
   
-  // 合并内置字体和自定义字体
-  const [fontsMap, setFontsMap] = useState<Record<string, string>>({
+  const fontsMap = {
     ...builtinFontsMap,
     ...customFonts,
-  });
+  };
   
-  // 当自定义字体变更时更新字体映射并持久化
+  // 自定义字体变化后仅持久化；字体映射直接由当前状态派生。
   useEffect(() => {
-    setFontsMap({
-      ...builtinFontsMap,
-      ...customFonts,
-    });
     localStorage.setItem("customFonts", JSON.stringify(customFonts));
   }, [customFonts]);
   

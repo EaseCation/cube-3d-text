@@ -20,7 +20,7 @@ interface ThreeSceneProps {
 const cachedFonts : {[id: string]: Font} = {}
 
 export interface ThreeSceneHandle {
-    groupRef: React.RefObject<THREE.Group>;
+    groupRef: React.RefObject<THREE.Group | null>;
 }
 
 const ThreeScene = forwardRef<ThreeSceneHandle, ThreeSceneProps>(({ texts, globalFontId, fontsMap, globalTextureYOffset }, ref) => {
