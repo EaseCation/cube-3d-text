@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Input, Flex, Typography } from 'antd';
+import { Input, Flex, Typography, theme as antdTheme } from 'antd';
 import { useLanguage } from '../language';
 
 const { Text } = Typography;
@@ -28,6 +28,7 @@ const DraggablePrefix: React.FC<{
     onValueChange: (value: number) => void;
 }> = ({ label, color, value, range, step, disabled, onValueChange }) => {
     const { gLang } = useLanguage();
+    const { token } = antdTheme.useToken();
     const [isDragging, setIsDragging] = useState(false);
     const [dragStartValue, setDragStartValue] = useState(0);
     const [dragStartY, setDragStartY] = useState(0);
@@ -131,7 +132,7 @@ const DraggablePrefix: React.FC<{
                 minWidth: '20px',
                 justifyContent: 'center',
                 borderRadius: '2px',
-                backgroundColor: isDragging ? '#f0f0f0' : 'transparent',
+                backgroundColor: isDragging ? 'var(--drag-background)' : 'transparent',
                 userSelect: 'none'
             }}
             onMouseDown={handleMouseDown}
@@ -142,7 +143,7 @@ const DraggablePrefix: React.FC<{
                 style={{
                     fontSize: '12px',
                     fontWeight: 600,
-                    color: disabled ? '#d9d9d9' : color,
+                    color: disabled ? token.colorTextDisabled : color,
                     lineHeight: 1
                 }}
             >

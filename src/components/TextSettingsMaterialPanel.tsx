@@ -301,7 +301,7 @@ const TextSettingsMaterialPanel: React.FC<TextSettingsMaterialPanelProps> = ({
                         width: 20,
                         height: 20,
                         borderRadius: 3,
-                        boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.1)"
+                        boxShadow: "0 0 0 1px var(--material-preview-border)"
                     }}/>
                 );
             }
@@ -313,7 +313,7 @@ const TextSettingsMaterialPanel: React.FC<TextSettingsMaterialPanelProps> = ({
                         width: 20,
                         height: 20,
                         borderRadius: 3,
-                        boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.1)"
+                        boxShadow: "0 0 0 1px var(--material-preview-border)"
                     }} />
                 );
             }
@@ -326,7 +326,7 @@ const TextSettingsMaterialPanel: React.FC<TextSettingsMaterialPanelProps> = ({
                             width: 20,
                             height: 20,
                             borderRadius: 3,
-                            boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.1)"
+                            boxShadow: "0 0 0 1px var(--material-preview-border)"
                         }}
                     />
                 );
@@ -416,7 +416,7 @@ const TextSettingsMaterialPanel: React.FC<TextSettingsMaterialPanelProps> = ({
                         <Button
                             onClick={exportMaterial}
                             type="text"
-                            icon={<img width={16} style={{ opacity: 0.45 }} src="/icon/export.svg"></img>}
+                            icon={<img className="material-action-icon" width={16} style={{ opacity: 0.45 }} src="/icon/export.svg"></img>}
                         >
                         </Button>
                     </Tooltip>
@@ -424,7 +424,7 @@ const TextSettingsMaterialPanel: React.FC<TextSettingsMaterialPanelProps> = ({
                         <Button
                             onClick={importMaterial}
                             type="text"
-                            icon={<img width={16} style={{ opacity: 0.45 }} src="/icon/import.svg"></img>}
+                            icon={<img className="material-action-icon" width={16} style={{ opacity: 0.45 }} src="/icon/import.svg"></img>}
                         >
                         </Button>
                     </Tooltip>
