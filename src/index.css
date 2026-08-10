@@ -9,7 +9,7 @@
   --stage-grid: transparent;
   --icon-filter: none;
   --drag-background: #f0f0f0;
-  --material-preview-border: rgba(0, 0, 0, 0.16);
+  --material-preview-border: rgba(0, 0, 0, 0.1);
   --toolbar-background: transparent;
   --toolbar-shadow: none;
   --toolbar-backdrop-filter: none;
@@ -50,7 +50,6 @@ body {
 
 #root {
   height: 100vh;
-  height: 100dvh;
   display: flex;
   flex-direction: column;
 }

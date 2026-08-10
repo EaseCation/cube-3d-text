@@ -239,6 +239,7 @@ test("dark CSS defines every light theme surface token and avoids a black previe
     assert.equal(lightVariables.get("toolbar-background"), "transparent");
     assert.equal(lightVariables.get("toolbar-shadow"), "none");
     assert.equal(lightVariables.get("toolbar-backdrop-filter"), "none");
+    assert.equal(lightVariables.get("material-preview-border"), "rgba(0, 0, 0, 0.1)");
     assert.doesNotMatch(darkVariables.get("stage-tile-a") ?? "", /^#(?:000|000000)$/i);
     assert.doesNotMatch(darkVariables.get("stage-tile-b") ?? "", /^#(?:000|000000)$/i);
     assert.equal(darkVariables.get("icon-filter"), "invert(1)");
