@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
     Splitter,
     Alert,
@@ -14,7 +14,8 @@ import {
     Tabs,
     Card,
     Popover,
-    Modal
+    Modal,
+    Tooltip
 } from "antd";
 import {
     AppstoreOutlined,
@@ -27,7 +28,9 @@ import {
     ReloadOutlined,
     SettingOutlined,
     GithubOutlined,
-    FileTextOutlined
+    FileTextOutlined,
+    MoonOutlined,
+    SunOutlined
 } from "@ant-design/icons";
 import { HappyProvider } from '@ant-design/happy-work-theme';
 import ThreeCanvas, { ThreeCanvasHandle } from "./components/ThreeCanvas";
@@ -47,9 +50,19 @@ import {
 } from "./utils/workspaceIO";
 import { FontProvider, useFonts } from "./contexts/FontContext";
 import { MaterialProvider } from './contexts/MaterialContext';
+import {
+    applyTheme,
+    createAppThemeConfig,
+    getInitialTheme,
+    ThemeMode
+} from "./utils/theme";
 
+interface AppContentProps {
+    themeMode: ThemeMode;
+    onThemeToggle: () => void;
+}
 
-const AppContent: React.FC = () => {
+const AppContent: React.FC<AppContentProps> = ({ themeMode, onThemeToggle }) => {
     const { language, setLanguage, gLang } = useLanguage();
     const messageApi = useMessage();
     const { fontsMap } = useFonts();
@@ -278,29 +291,10 @@ const AppContent: React.FC = () => {
         setTexts(newTexts);
     };
 
+    const isDarkMode = themeMode === "dark";
+
     return (
-        <ConfigProvider
-            theme={{
-                token: {
-                    colorPrimary: '#333333',
-                },
-                components: {
-                    Button: {
-                        primaryShadow: '0 2px 0 rgba(0, 0, 0, 0.08)'
-                    },
-                    Dropdown: {
-                        controlItemBgActive: 'rgba(0, 0, 0, 0.12)',
-                        controlItemBgActiveHover: 'rgba(0, 0, 0, 0.2)',
-                    },
-                    Select: {
-                        optionSelectedBg: 'rgba(0, 0, 0, 0.12)',
-                    },
-                    Form: {
-                        itemMarginBottom: 12
-                    },
-                },
-            }}
-        >
+        <main className="app-shell">
                 <Modal
                     title={gLang('notice')}
                     open={chinaMirrorAlertModal}
@@ -347,14 +341,20 @@ const AppContent: React.FC = () => {
                         </Button>
                     </Popover>
                 )}
-                <Splitter layout={isMobile ? 'vertical' : 'horizontal'} style={{ height: '100vh' }}>
+                <Splitter layout={isMobile ? 'vertical' : 'horizontal'} className="editor-splitter">
                     {!isMobile && (
-                        <Splitter.Panel defaultSize={300} min={250} max={500} style={{ background: "#F5F5F5", padding: 16, overflow: "auto" }}>
+                        <Splitter.Panel
+                            className="settings-sidebar"
+                            defaultSize={300}
+                            min={250}
+                            max={500}
+                            style={{ padding: 16, overflow: "auto" }}
+                        >
                             <Flex vertical gap={"middle"} style={{ width: "100%" }}>
                                 <Collapse
                                     defaultActiveKey={["camera"]}
                                     bordered={false}
-                                    style={{ background: "white", boxShadow: "0 2px 16px rgba(0, 0, 0, 0.05)" }}
+                                    className="settings-card"
                                     items={[
                                         {
                                             key: "camera",
@@ -375,7 +375,7 @@ const AppContent: React.FC = () => {
                                         activeKey={textPanelActiveKeys}
                                         onChange={setTextPanelActiveKeys}
                                         bordered={false}
-                                        style={{ background: "white", boxShadow: "0 2px 16px rgba(0, 0, 0, 0.05)" }}
+                                        className="settings-card"
                                         items={texts.map((text, index) => ({
                                             key: (index + 1).toString(),
                                             label: text.content ? text.content : gLang(`textPanelTitle`, { index: index + 1 }),
@@ -461,7 +461,7 @@ const AppContent: React.FC = () => {
                             </Flex>
                         </Splitter.Panel>
                     )}
-                    <Splitter.Panel style={{ position: "relative" }}>
+                    <Splitter.Panel className="canvas-stage" style={{ position: "relative" }}>
                         <ThreeCanvas
                             ref={threeCanvasRef}
                             cameraOptions={cameraOptions}
@@ -516,7 +516,15 @@ const AppContent: React.FC = () => {
 
                         </Flex>
 
-                        <Flex style={{ position: "absolute", bottom: 8, right: 8, zIndex: 1 }}>
+                        <Flex className="canvas-toolbar" style={{ position: "absolute", bottom: 8, right: 8, zIndex: 1 }}>
+                            <Tooltip title={gLang(isDarkMode ? 'switchToLightMode' : 'switchToDarkMode')}>
+                                <Button
+                                    type="text"
+                                    aria-label={gLang(isDarkMode ? 'switchToLightMode' : 'switchToDarkMode')}
+                                    icon={isDarkMode ? <SunOutlined /> : <MoonOutlined />}
+                                    onClick={onThemeToggle}
+                                />
+                            </Tooltip>
                             <a href="https://github.com/EaseCation/cube-3d-text" target="_blank" rel="noopener noreferrer">
                                 <Button type={'text'} style={{ padding: "0px 12px" }}>
                                     <Typography.Text type={'secondary'}>
@@ -621,7 +629,7 @@ const AppContent: React.FC = () => {
                     </Splitter.Panel>
 
                     {isMobile && (
-                        <Splitter.Panel defaultSize={"50%"} min={200}>
+                        <Splitter.Panel className="mobile-settings" defaultSize={"50%"} min={200}>
                             <Flex vertical style={{ height: "100%", padding: 16 }}>
                                 <Tabs
                                     tabBarStyle={{ marginBottom: 0 }}
@@ -677,19 +685,34 @@ const AppContent: React.FC = () => {
                         </Splitter.Panel>
                     )}
                 </Splitter>
-        </ConfigProvider>
+        </main>
     );
 };
 
 const App: React.FC = () => {
+    const [themeMode, setThemeMode] = useState<ThemeMode>(getInitialTheme);
+
+    useLayoutEffect(() => {
+        applyTheme(themeMode);
+    }, [themeMode]);
+
+    const themeConfig = useMemo(() => createAppThemeConfig(themeMode), [themeMode]);
+
     return (
-        <MessageProvider>
-            <FontProvider>
-                <MaterialProvider>
-                    <AppContent />
-                </MaterialProvider>
-            </FontProvider>
-        </MessageProvider>
+        <ConfigProvider theme={themeConfig}>
+            <MessageProvider>
+                <FontProvider>
+                    <MaterialProvider>
+                        <AppContent
+                            themeMode={themeMode}
+                            onThemeToggle={() => setThemeMode(current =>
+                                current === "dark" ? "light" : "dark"
+                            )}
+                        />
+                    </MaterialProvider>
+                </FontProvider>
+            </MessageProvider>
+        </ConfigProvider>
     );
 };
 
