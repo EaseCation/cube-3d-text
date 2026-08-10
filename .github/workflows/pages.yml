@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
+  # Deploy Pages before refreshing the dependent Aliyun CDN mirror.
   deploy:
     environment:
       name: github-pages
@@ -48,3 +48,138 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  refresh-cdn:
+    name: Refresh Aliyun CDN
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Install Aliyun CLI
+        env:
+          ALIYUN_CLI_VERSION: 3.3.12
+          ALIYUN_CLI_SHA256: 88fb94ee39c2c2a61c5a791a41c9a556ce2f61eb5f1fc9124c78349719c85214
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/aliyun-cli.tgz"
+          curl -fsSL \
+            "https://aliyuncli.alicdn.com/aliyun-cli-linux-${ALIYUN_CLI_VERSION}-amd64.tgz" \
+            -o "$archive"
+          echo "${ALIYUN_CLI_SHA256}  ${archive}" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          sudo install "$RUNNER_TEMP/aliyun" /usr/local/bin/aliyun
+          test "$(aliyun version)" = "$ALIYUN_CLI_VERSION"
+
+      - name: Configure Aliyun temporary credentials
+        uses: aliyun/configure-aliyun-credentials-action@v1
+        with:
+          role-to-assume: ${{ vars.ALIYUN_CDN_REFRESH_ROLE_ARN }}
+          oidc-provider-arn: ${{ vars.ALIYUN_OIDC_PROVIDER_ARN }}
+          role-session-name: gh-${{ github.repository_id }}-${{ github.run_id }}
+          role-session-expiration: 1800
+          audience: sts.aliyuncs.com
+
+      - name: Configure Aliyun CLI
+        run: |
+          set -euo pipefail
+          test -n "$ALIBABA_CLOUD_ACCESS_KEY_ID"
+          test -n "$ALIBABA_CLOUD_ACCESS_KEY_SECRET"
+          test -n "$ALIBABA_CLOUD_SECURITY_TOKEN"
+          aliyun configure set \
+            --mode StsToken \
+            --region cn-hangzhou \
+            --access-key-id "$ALIBABA_CLOUD_ACCESS_KEY_ID" \
+            --access-key-secret "$ALIBABA_CLOUD_ACCESS_KEY_SECRET" \
+            --sts-token "$ALIBABA_CLOUD_SECURITY_TOKEN"
+
+      - name: Refresh CDN entry pages
+        run: |
+          set -euo pipefail
+          task_id="$(
+            aliyun cdn RefreshObjectCaches \
+              --ObjectPath $'https://3dt.easecation.net/\nhttps://3dt.easecation.net/index.html' \
+              --ObjectType File |
+              node -e '
+                let input = "";
+                process.stdin.on("data", (chunk) => input += chunk);
+                process.stdin.on("end", () => {
+                  const taskId = JSON.parse(input).RefreshTaskId;
+                  if (!taskId) process.exit(1);
+                  process.stdout.write(taskId);
+                });
+              '
+          )"
+
+          for attempt in {1..30}; do
+            state="$(
+              aliyun cdn DescribeRefreshTaskById --TaskId "$task_id" |
+                node -e '
+                  let input = "";
+                  process.stdin.on("data", (chunk) => input += chunk);
+                  process.stdin.on("end", () => {
+                    const tasks = JSON.parse(input).Tasks ?? [];
+                    if (tasks.some((task) => task.Status === "Failed")) {
+                      process.stdout.write("failed");
+                    } else if (tasks.length > 0 &&
+                               tasks.every((task) => task.Status === "Complete")) {
+                      process.stdout.write("complete");
+                    } else {
+                      process.stdout.write("pending");
+                    }
+                  });
+                '
+            )"
+            case "$state" in
+              complete) break ;;
+              failed) exit 1 ;;
+            esac
+            if [[ "$attempt" == 30 ]]; then
+              echo "CDN refresh task $task_id timed out" >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Verify production
+        run: |
+          set -euo pipefail
+
+          for attempt in {1..12}; do
+            main_http="$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' \
+              --max-time 20 http://3dtext.easecation.net/ || true)"
+            cdn_http="$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' \
+              --max-time 20 http://3dt.easecation.net/ || true)"
+            cdn_https="$(curl -sS -o /dev/null -w '%{http_code}' \
+              --max-time 20 https://3dt.easecation.net/ || true)"
+            main_bundle="$(
+              curl -fsS --max-time 30 https://3dtext.easecation.net/ |
+                grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' |
+                head -1 || true
+            )"
+            cdn_bundle="$(
+              curl -fsS --max-time 30 https://3dt.easecation.net/ |
+                grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' |
+                head -1 || true
+            )"
+            cdn_cache_time="$(
+              curl -sS -o /dev/null -D - --max-time 20 https://3dt.easecation.net/ |
+                tr -d '\r' |
+                awk 'tolower($1) == "x-swift-cachetime:" { print $2 }' |
+                tail -1 || true
+            )"
+
+            if [[ "$main_http" == "301 https://3dtext.easecation.net/" &&
+                  "$cdn_http" == "301 https://3dt.easecation.net/" &&
+                  "$cdn_https" == "200" &&
+                  "$cdn_cache_time" == "600" &&
+                  -n "$main_bundle" &&
+                  "$main_bundle" == "$cdn_bundle" ]]; then
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "Production verification did not converge after CDN refresh" >&2
+          exit 1
