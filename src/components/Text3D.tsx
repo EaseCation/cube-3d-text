@@ -1,4 +1,4 @@
-import { forwardRef, useMemo, useState } from "react";
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Font } from "three/examples/jsm/loaders/FontLoader.js";
 import { TextOptions } from "../types/text";
@@ -9,6 +9,8 @@ import {
 import { createSpacedTextGeometry, createSpacedTextGeometryOutline } from "../utils/textGeometry.ts";
 import { Html } from "@react-three/drei";
 import OverlayHelper from "./OverlayHelper.tsx";
+import { useMessage } from "../contexts/MessageContext.tsx";
+import { useLanguage } from "../language.tsx";
 
 interface Text3DProps {
     content: string;
@@ -17,6 +19,7 @@ interface Text3DProps {
     globalTextureYOffset: number;
     position: [number, number, number];
     rotation: [number, number, number];
+    suppressUnsupportedWarning?: boolean;
 }
 
 const Text3D = forwardRef<THREE.Group, Text3DProps>(({
@@ -25,8 +28,12 @@ const Text3D = forwardRef<THREE.Group, Text3DProps>(({
                                                          font,
                                                          globalTextureYOffset,
                                                          position,
-                                                         rotation
+                                                         rotation,
+                                                         suppressUnsupportedWarning = false,
                                                      }, ref) => {
+
+    const messageApi = useMessage();
+    const { gLang } = useLanguage();
 
     // 创建带有字间距的文字几何体
     const geometry = useMemo(() => {
@@ -45,6 +52,24 @@ const Text3D = forwardRef<THREE.Group, Text3DProps>(({
         });
         return geo;
     }, [content, opts.size, opts.depth, font, opts.letterSpacing, opts.spacingWidth]);
+
+    const unsupportedChars = geometry.userData.unsupportedChars as string[] | undefined;
+    const unsupportedCharsKey = unsupportedChars?.join("") ?? "";
+    const lastUnsupportedWarning = useRef("");
+
+    useEffect(() => {
+        if (!unsupportedCharsKey || suppressUnsupportedWarning) {
+            lastUnsupportedWarning.current = "";
+            return;
+        }
+        if (lastUnsupportedWarning.current === unsupportedCharsKey) return;
+        lastUnsupportedWarning.current = unsupportedCharsKey;
+        messageApi?.warning({
+            key: `unsupported-glyphs-${unsupportedCharsKey}`,
+            content: gLang("customFont.unsupportedChars", { chars: unsupportedCharsKey }),
+            duration: 5,
+        });
+    }, [gLang, messageApi, suppressUnsupportedWarning, unsupportedCharsKey]);
 
     // 获取文字几何体的高度
     const boundingBox = useMemo(() => {

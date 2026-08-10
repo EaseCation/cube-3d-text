@@ -2,8 +2,7 @@
 import * as THREE from "three";
 import { Font } from "three/examples/jsm/loaders/FontLoader.js";
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
-import * as ClipperLib from 'clipper-lib';
+import ClipperLib from 'clipper-lib';
 import { OFFSET_SCALE, offsetShape } from "./offsetShape";
 
 // 占位符配置常量
@@ -152,6 +151,155 @@ const ensureWindingOrder = (shape: THREE.Shape, curveSegments: number = 12): THR
     return shape;
 };
 
+const toClipperPath = (
+    points: THREE.Vector2[],
+    shouldBePositive: boolean
+): ClipperLib.Path => {
+    const path = points.map(point => ({
+        X: Math.round(point.x * OFFSET_SCALE),
+        Y: Math.round(point.y * OFFSET_SCALE),
+    }));
+
+    const isPositive = computeClipperPathArea(path) >= 0;
+    return isPositive === shouldBePositive ? path : path.reverse();
+};
+
+const computeClipperPathArea = (path: ClipperLib.Path): number => {
+    let area = 0;
+    for (let index = 0; index < path.length; index++) {
+        const current = path[index];
+        const next = path[(index + 1) % path.length];
+        area += current.X * next.Y - next.X * current.Y;
+    }
+    return area / 2;
+};
+
+const clipperPathContainsPoint = (
+    path: ClipperLib.Path,
+    point: { X: number; Y: number }
+): boolean => {
+    let inside = false;
+
+    for (let currentIndex = 0, previousIndex = path.length - 1;
+        currentIndex < path.length;
+        previousIndex = currentIndex++) {
+        const current = path[currentIndex];
+        const previous = path[previousIndex];
+        const crossProduct = (point.Y - previous.Y) * (current.X - previous.X) -
+            (point.X - previous.X) * (current.Y - previous.Y);
+        const isOnSegment = crossProduct === 0 &&
+            point.X >= Math.min(previous.X, current.X) &&
+            point.X <= Math.max(previous.X, current.X) &&
+            point.Y >= Math.min(previous.Y, current.Y) &&
+            point.Y <= Math.max(previous.Y, current.Y);
+        if (isOnSegment) return true;
+
+        const intersects = (current.Y > point.Y) !== (previous.Y > point.Y) &&
+            point.X < ((previous.X - current.X) * (point.Y - current.Y)) /
+            (previous.Y - current.Y) + current.X;
+        if (intersects) inside = !inside;
+    }
+
+    return inside;
+};
+
+const pathToPoints = (path: ClipperLib.Path): THREE.Vector2[] => path.map(point => (
+    new THREE.Vector2(point.X / OFFSET_SCALE, point.Y / OFFSET_SCALE)
+));
+
+interface UnionShapeEntry {
+    path: ClipperLib.Path;
+    shape: THREE.Shape;
+    area: number;
+}
+
+/**
+ * Merges intersecting contours before extrusion. Some merged Unicode fonts
+ * contain duplicate, slightly shifted outlines which otherwise create
+ * coplanar and intersecting 3D faces.
+ */
+export const normalizeOverlappingShapes = (
+    shapes: THREE.Shape[],
+    curveSegments: number = 12
+): THREE.Shape[] => {
+    if (shapes.length === 0) return [];
+
+    const sourcePaths: ClipperLib.Paths = [];
+    let sourceArea = 0;
+
+    shapes.forEach(shape => {
+        const outerPath = toClipperPath(shape.getPoints(curveSegments), true);
+        if (outerPath.length >= 3) {
+            sourcePaths.push(outerPath);
+            sourceArea += Math.abs(computeClipperPathArea(outerPath));
+        }
+
+        shape.holes.forEach(hole => {
+            const holePath = toClipperPath(hole.getPoints(curveSegments), false);
+            if (holePath.length >= 3) {
+                sourcePaths.push(holePath);
+                sourceArea -= Math.abs(computeClipperPathArea(holePath));
+            }
+        });
+    });
+
+    if (sourcePaths.length === 0) return [];
+
+    const clipper = new ClipperLib.Clipper();
+    clipper.AddPaths(sourcePaths, ClipperLib.PolyType.ptSubject, true);
+
+    const unionPaths: ClipperLib.Paths = [];
+    const succeeded = clipper.Execute(
+        ClipperLib.ClipType.ctUnion,
+        unionPaths,
+        ClipperLib.PolyFillType.pftNonZero,
+        ClipperLib.PolyFillType.pftNonZero
+    );
+    if (!succeeded || unionPaths.length === 0) return shapes;
+
+    const unionArea = unionPaths.reduce(
+        (total, path) => total + computeClipperPathArea(path),
+        0
+    );
+    const tolerance = Math.max(1, Math.abs(sourceArea) * 1e-6);
+
+    // Preserve the original curves when there are no intersecting contours.
+    if (Math.abs(sourceArea - unionArea) <= tolerance) return shapes;
+
+    const outerShapes: UnionShapeEntry[] = [];
+    const holePaths: ClipperLib.Path[] = [];
+
+    unionPaths.forEach(path => {
+        const area = computeClipperPathArea(path);
+        if (area > 0) {
+            outerShapes.push({
+                path,
+                shape: new THREE.Shape(pathToPoints(path)),
+                area,
+            });
+        } else if (area < 0) {
+            holePaths.push(path);
+        }
+    });
+
+    holePaths.forEach(holePath => {
+        const point = holePath[0];
+        const container = outerShapes
+            .filter(entry => clipperPathContainsPoint(entry.path, point))
+            .sort((left, right) => left.area - right.area)[0];
+
+        if (container) {
+            container.shape.holes.push(new THREE.Path(pathToPoints(holePath)));
+        }
+    });
+
+    return outerShapes.length > 0 ? outerShapes.map(entry => entry.shape) : shapes;
+};
+
+const fontHasGlyph = (font: Font, char: string): boolean => (
+    Object.prototype.hasOwnProperty.call(font.data.glyphs, char)
+);
+
 function reassignUVByNormal(geometry: THREE.BufferGeometry): void {
     geometry.computeBoundingBox();
     if (!geometry.boundingBox) return;
@@ -235,8 +383,7 @@ export function createSpacedTextGeometry({
     const spacing = size * 0.12;
     const unsupportedChars = new Set<string>();
 
-    for (let i = 0; i < text.length; i++) {
-        const char = text[i];
+    for (const char of Array.from(text)) {
         if (char === " ") {
             // 如果是空格，根据你的 spacingWidth 处理偏移
             const spaceWidth = size * spacingWidth;
@@ -249,9 +396,19 @@ export function createSpacedTextGeometry({
         let charWidth: number;
 
         try {
-            charGeometry = new TextGeometry(char, {
-                font,
-                size,
+            if (!fontHasGlyph(font, char)) {
+                throw new Error(`Missing glyph: ${char}`);
+            }
+
+            const shapes = normalizeOverlappingShapes(
+                font.generateShapes(char, size),
+                curveSegments
+            );
+            if (shapes.length === 0) {
+                throw new Error(`Empty glyph: ${char}`);
+            }
+
+            charGeometry = new THREE.ExtrudeGeometry(shapes, {
                 depth: height,
                 curveSegments,
                 bevelEnabled
@@ -288,7 +445,9 @@ export function createSpacedTextGeometry({
 
     // 如果没有任何几何体，返回空几何体
     if (geometries.length === 0) {
-        return new THREE.BufferGeometry();
+        const emptyGeometry = new THREE.BufferGeometry();
+        emptyGeometry.userData.unsupportedChars = Array.from(unsupportedChars);
+        return emptyGeometry;
     }
 
     // 合并所有字符
@@ -299,6 +458,7 @@ export function createSpacedTextGeometry({
 
     // —— 关键：合并完后，重新分配 UV ——
     reassignUVByNormal(mergedGeometry);
+    mergedGeometry.userData.unsupportedChars = Array.from(unsupportedChars);
 
     return mergedGeometry;
 }
@@ -371,8 +531,7 @@ export const createSpacedTextGeometryOutline = ({
     let offsetX = 0;
     const spacing = size * 0.12;
 
-    for (let i = 0; i < text.length; i++) {
-        const char = text[i];
+    for (const char of Array.from(text)) {
         if (char === " ") {
             // 处理空格：根据字体的空格宽度设置间距
             //const metrics = (font.data as ExtendedFontData).metrics;
@@ -386,6 +545,9 @@ export const createSpacedTextGeometryOutline = ({
         let isPlaceholder = false;
 
         try {
+            if (!fontHasGlyph(font, char)) {
+                throw new Error(`Missing glyph: ${char}`);
+            }
             charShapes = font.generateShapes(char, size);
 
             if (charShapes.length === 0) {
@@ -506,8 +668,7 @@ export function createTextShapes2D(params: {
     const spacing = size * 0.12;
 
     // 1. 生成所有字符形状
-    for (let i = 0; i < text.length; i++) {
-        const char = text[i];
+    for (const char of Array.from(text)) {
         if (char === " ") {
             offsetX += size * spacingWidth + letterSpacing * spacing;
             continue;
@@ -517,6 +678,9 @@ export function createTextShapes2D(params: {
         let charWidth: number;
 
         try {
+            if (!fontHasGlyph(font, char)) {
+                throw new Error(`Missing glyph: ${char}`);
+            }
             charShapes = font.generateShapes(char, size);
 
             if (charShapes.length === 0) {

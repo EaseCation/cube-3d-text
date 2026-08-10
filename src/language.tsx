@@ -97,6 +97,7 @@ export const languageConfig: Readonly<LanguageConfig> = {
             nameInput: "请输入字体名称（用于显示在字体列表里的名称）",
             success: "字体添加成功",
             failed: "字体添加失败（详细原因请看控制台）",
+            unsupportedChars: "当前字体不支持字符：{chars}，已使用方块占位，请更换字体",
         },
         fontLicence: {
             netease: "限制商用",
@@ -229,6 +230,7 @@ export const languageConfig: Readonly<LanguageConfig> = {
             nameInput: "Please input the font name",
             success: "Font added successfully",
             failed: "Font adding failed (please check the console for more details)",
+            unsupportedChars: "This font does not support: {chars}. Placeholders are shown; please choose another font",
         },
         fontLicence: {
             netease: "Limitation",
@@ -360,7 +362,8 @@ export const languageConfig: Readonly<LanguageConfig> = {
             upload: "アップロード",
             nameInput: "フォント名を入力してください",
             success: "フォントが追加されました",
-            failed: "フォントの追加に失敗しました（詳細はコンソールを確認してください）"
+            failed: "フォントの追加に失敗しました（詳細はコンソールを確認してください）",
+            unsupportedChars: "このフォントは次の文字に対応していません：{chars}。別のフォントを選択してください"
         },
         fontLicence: {
             netease: "制限",

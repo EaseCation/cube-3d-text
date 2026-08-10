@@ -165,7 +165,7 @@ function convert(
 
         // 逐个 unicode 做转换
         unicodes.forEach((unicode) => {
-            const glyphCharacter = String.fromCharCode(unicode);
+            const glyphCharacter = String.fromCodePoint(unicode);
             let needToExport = true;
 
             // 判断是否需要导出

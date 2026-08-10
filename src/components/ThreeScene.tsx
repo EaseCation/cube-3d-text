@@ -161,8 +161,13 @@ const ThreeScene = forwardRef<ThreeSceneHandle, ThreeSceneProps>(({ texts, globa
                         const effectiveFontId = text.fontId && fontsMap[text.fontId]
                             ? text.fontId
                             : effectiveGlobalFontId;
-                        const font = (effectiveFontId && loadedFonts[effectiveFontId]) ||
-                            (fallbackFontId && loadedFonts[fallbackFontId]);
+                        const selectedFont = effectiveFontId && loadedFonts[effectiveFontId];
+                        const font = selectedFont || (fallbackFontId && loadedFonts[fallbackFontId]);
+                        const isTemporaryFallback = Boolean(
+                            effectiveFontId &&
+                            effectiveFontId !== fallbackFontId &&
+                            !selectedFont
+                        );
                         
                         // 如果字体还未加载完成，不渲染该文本
                         if (!font) return null;
@@ -174,6 +179,7 @@ const ThreeScene = forwardRef<ThreeSceneHandle, ThreeSceneProps>(({ texts, globa
                                 opts={text.opts}
                                 globalTextureYOffset={globalTextureYOffset}
                                 font={font}
+                                suppressUnsupportedWarning={isTemporaryFallback}
                                 position={[text.opts.x, text.opts.y, text.opts.z]}
                                 rotation={[text.opts.rotY * (Math.PI / 180), text.opts.rotX * (Math.PI / 180), text.opts.rotZ * (Math.PI / 180)]}
                             />
