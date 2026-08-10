@@ -4,13 +4,15 @@
   --panel-background: #f5f5f5;
   --card-background: #ffffff;
   --card-shadow: 0 2px 16px rgba(0, 0, 0, 0.05);
-  --stage-tile-a: #f7f7f7;
-  --stage-tile-b: #ededed;
-  --stage-grid: rgba(0, 0, 0, 0.025);
+  --stage-tile-a: #f5f5f5;
+  --stage-tile-b: #f5f5f5;
+  --stage-grid: transparent;
   --icon-filter: none;
   --drag-background: #f0f0f0;
   --material-preview-border: rgba(0, 0, 0, 0.16);
-  --toolbar-background: rgba(255, 255, 255, 0.76);
+  --toolbar-background: transparent;
+  --toolbar-shadow: none;
+  --toolbar-backdrop-filter: none;
 }
 
 :root[data-theme="dark"] {
@@ -26,6 +28,8 @@
   --drag-background: #343c48;
   --material-preview-border: rgba(255, 255, 255, 0.28);
   --toolbar-background: rgba(32, 38, 48, 0.78);
+  --toolbar-shadow: var(--card-shadow);
+  --toolbar-backdrop-filter: blur(10px);
 }
 
 * {
@@ -84,8 +88,8 @@ body {
 .canvas-toolbar {
   border-radius: 8px;
   background: var(--toolbar-background);
-  box-shadow: var(--card-shadow);
-  backdrop-filter: blur(10px);
+  box-shadow: var(--toolbar-shadow);
+  backdrop-filter: var(--toolbar-backdrop-filter);
 }
 
 .material-action-icon {
