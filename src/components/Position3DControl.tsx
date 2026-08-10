@@ -3,6 +3,7 @@ import { Input, Flex, Typography } from 'antd';
 import { useLanguage } from '../language';
 
 const { Text } = Typography;
+type Axis = 'x' | 'y' | 'z';
 
 interface Position3DControlProps {
     x: number;
@@ -162,45 +163,27 @@ const Position3DControl: React.FC<Position3DControlProps> = ({
     step = 0.1,
     disabled = false,
 }) => {
-    // 本地输入字符串状态，允许临时不可解析的值（如 "-", "1.", ""）
-    const [inputX, setInputX] = useState<string>(x.toFixed(1));
-    const [inputY, setInputY] = useState<string>(y.toFixed(1));
-    const [inputZ, setInputZ] = useState<string>(z.toFixed(1));
-
-    // 聚焦状态，避免在编辑时被外部值覆盖
-    const [editingX, setEditingX] = useState(false);
-    const [editingY, setEditingY] = useState(false);
-    const [editingZ, setEditingZ] = useState(false);
-
     const formatNum = (n: number) => n.toFixed(1);
-
-    // 当外部值变化时，同步到本地显示（非编辑中）
-    useEffect(() => {
-        if (!editingX) setInputX(formatNum(x));
-    }, [x, editingX]);
-    useEffect(() => {
-        if (!editingY) setInputY(formatNum(y));
-    }, [y, editingY]);
-    useEffect(() => {
-        if (!editingZ) setInputZ(formatNum(z));
-    }, [z, editingZ]);
+    // 只保存编辑中的草稿；非编辑状态直接显示外部值，避免派生状态失步。
+    const [inputDrafts, setInputDrafts] = useState<Partial<Record<Axis, string>>>({});
+    const displayedValue = (axis: Axis) => {
+        const values = { x, y, z };
+        return inputDrafts[axis] ?? formatNum(values[axis]);
+    };
 
     // 仅允许 数字/负号/点，负号只能在开头，点只能出现一次（但允许结尾处点作为临时态）
     const allowedPartial = /^-?\d*(\.\d*)?$/;
     // 完整数字，用于提交（不以点结尾，不是空或仅负号）
     const completeNumber = /^-?\d+(?:\.\d+)?$/;
 
-    const handleInputChange = (axis: 'x' | 'y' | 'z', raw: string) => {
+    const handleInputChange = (axis: Axis, raw: string) => {
         if (disabled) return;
         if (!allowedPartial.test(raw)) {
             // 拒绝包含非法字符的输入
             return;
         }
 
-        // 更新本地字符串
-        if (axis === 'x') setInputX(raw);
-        if (axis === 'y') setInputY(raw);
-        if (axis === 'z') setInputZ(raw);
+        setInputDrafts((drafts) => ({ ...drafts, [axis]: raw }));
 
         // 若是完整数字，立刻提交变化
         if (completeNumber.test(raw)) {
@@ -211,39 +194,33 @@ const Position3DControl: React.FC<Position3DControlProps> = ({
         }
     };
 
-    const handleBlur = (axis: 'x' | 'y' | 'z') => {
-        const raw = axis === 'x' ? inputX : axis === 'y' ? inputY : inputZ;
-        let nextValue = axis === 'x' ? x : axis === 'y' ? y : z;
+    const handleBlur = (axis: Axis) => {
+        const raw = displayedValue(axis);
 
         if (completeNumber.test(raw)) {
-            nextValue = parseFloat(raw);
             const next = { x, y, z } as { x: number; y: number; z: number };
-            next[axis] = nextValue;
+            next[axis] = parseFloat(raw);
             onPositionChange(next);
         }
 
-        // 失焦后规范化显示为固定小数位
-        const formatted = formatNum(nextValue);
-        if (axis === 'x') {
-            setInputX(formatted);
-            setEditingX(false);
-        } else if (axis === 'y') {
-            setInputY(formatted);
-            setEditingY(false);
-        } else {
-            setInputZ(formatted);
-            setEditingZ(false);
-        }
+        setInputDrafts((drafts) => {
+            const nextDrafts = { ...drafts };
+            delete nextDrafts[axis];
+            return nextDrafts;
+        });
     };
 
     return (
         <Flex gap="small" align="center">
             {/* X 轴控制 */}
             <Input
-                value={inputX}
+                value={displayedValue('x')}
                 disabled={disabled}
                 onChange={(e) => handleInputChange('x', e.target.value)}
-                onFocus={() => setEditingX(true)}
+                onFocus={() => setInputDrafts((drafts) => ({
+                    ...drafts,
+                    x: drafts.x ?? formatNum(x),
+                }))}
                 onBlur={() => handleBlur('x')}
                 style={{ flex: 1 }}
                 prefix={
@@ -255,7 +232,7 @@ const Position3DControl: React.FC<Position3DControlProps> = ({
                         step={step}
                         disabled={disabled}
                         onValueChange={(value) => {
-                            setInputX(formatNum(value));
+                            setInputDrafts((drafts) => ({ ...drafts, x: formatNum(value) }));
                             onPositionChange({ x: value, y, z });
                         }}
                     />
@@ -264,10 +241,13 @@ const Position3DControl: React.FC<Position3DControlProps> = ({
 
             {/* Y 轴控制 */}
             <Input
-                value={inputY}
+                value={displayedValue('y')}
                 disabled={disabled}
                 onChange={(e) => handleInputChange('y', e.target.value)}
-                onFocus={() => setEditingY(true)}
+                onFocus={() => setInputDrafts((drafts) => ({
+                    ...drafts,
+                    y: drafts.y ?? formatNum(y),
+                }))}
                 onBlur={() => handleBlur('y')}
                 style={{ flex: 1 }}
                 prefix={
@@ -279,7 +259,7 @@ const Position3DControl: React.FC<Position3DControlProps> = ({
                         step={step}
                         disabled={disabled}
                         onValueChange={(value) => {
-                            setInputY(formatNum(value));
+                            setInputDrafts((drafts) => ({ ...drafts, y: formatNum(value) }));
                             onPositionChange({ x, y: value, z });
                         }}
                     />
@@ -288,10 +268,13 @@ const Position3DControl: React.FC<Position3DControlProps> = ({
 
             {/* Z 轴控制 */}
             <Input
-                value={inputZ}
+                value={displayedValue('z')}
                 disabled={disabled}
                 onChange={(e) => handleInputChange('z', e.target.value)}
-                onFocus={() => setEditingZ(true)}
+                onFocus={() => setInputDrafts((drafts) => ({
+                    ...drafts,
+                    z: drafts.z ?? formatNum(z),
+                }))}
                 onBlur={() => handleBlur('z')}
                 style={{ flex: 1 }}
                 prefix={
@@ -303,7 +286,7 @@ const Position3DControl: React.FC<Position3DControlProps> = ({
                         step={step}
                         disabled={disabled}
                         onValueChange={(value) => {
-                            setInputZ(formatNum(value));
+                            setInputDrafts((drafts) => ({ ...drafts, z: formatNum(value) }));
                             onPositionChange({ x, y, z: value });
                         }}
                     />

@@ -10,7 +10,12 @@ import {
     TextMaterialColorOption,
 } from "../types/text";
 import { useLanguage } from "../language";
-import { serializeMaterial, SerializedMaterial, deserializeMaterial } from "../utils/materialSerializer";
+import {
+    serializeMaterial,
+    SerializedMaterial,
+    deserializeMaterial,
+    isSerializedMaterial
+} from "../utils/materialSerializer";
 
 const { Option } = Select;
 
@@ -365,7 +370,7 @@ const TextSettingsMaterialPanel: React.FC<TextSettingsMaterialPanelProps> = ({
             try {
                 const jsonData = JSON.parse(e.target?.result as string);
 
-                if (!jsonData.version || !jsonData.material) {
+                if (!isSerializedMaterial(jsonData)) {
                     message.error(gLang('invalidMaterialFile'));
                     return;
                 }
