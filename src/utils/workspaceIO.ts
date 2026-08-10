@@ -37,9 +37,15 @@ export function generateValidFileName(workspace: WorkspaceData): string {
     .replace(/[\r\n]+/g, '-')  // 将换行符替换为连字符
     .replace(/[\\/:*?"<>|]/g, '') // 移除Windows文件名不允许的字符
     .replace(/\s+/g, '-')      // 将空格替换为连字符
-    .substring(0, 30);         // 限制长度
+    .replace(/^[.-]+|[.-]+$/g, '')
+    .substring(0, 30)
+    .replace(/[.-]+$/g, '');   // 截断后再次移除结尾分隔符
+
+  const windowsReservedName = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
   
-  return fileName || 'cube-3d-text-project';
+  return fileName && !windowsReservedName.test(fileName)
+    ? fileName
+    : 'cube-3d-text-project';
 }
 
 /**
@@ -203,7 +209,14 @@ export function upgradeToLatest(jsonData: string, messageApi?: MessageInstance |
     // 类型保护检查
     if (data && typeof data === 'object' && 'version' in data && 'data' in data) {
       // 有版本信息的新格式
-      currentVersion = (data as VersionedWorkspaceData).version;
+      const version = (data as VersionedWorkspaceData).version;
+      if (!Number.isInteger(version) || version < 0) {
+        throw new Error("Invalid workspace version");
+      }
+      if (version > CURRENT_WORKSPACE_VERSION) {
+        throw new Error(`Unsupported workspace version: ${version}`);
+      }
+      currentVersion = version;
       workspaceData = (data as VersionedWorkspaceData).data;
     } else {
       // 无版本信息的旧格式，视为版本0
@@ -212,14 +225,14 @@ export function upgradeToLatest(jsonData: string, messageApi?: MessageInstance |
     }
     
     // 如果版本已经是最新，仍需要恢复 overlay 字段（因为导出时被序列化为字符串）
-    if (currentVersion >= CURRENT_WORKSPACE_VERSION) {
+    if (currentVersion === CURRENT_WORKSPACE_VERSION) {
+      if (!isWorkspaceData(workspaceData)) {
+        throw new Error("Invalid workspace data structure");
+      }
       // 恢复所有文本的 overlay 字段
       workspaceData.texts.forEach((text) => {
         restoreOverlayField(text.opts);
       });
-      if (!isWorkspaceData(workspaceData)) {
-        throw new Error("Invalid workspace data structure");
-      }
       return workspaceData;
     }
     
@@ -315,6 +328,7 @@ export function loadWorkspaceFromLocalStorage(messageApi?: MessageInstance | nul
   } catch (e) {
     const errorMsg = '加载本地工作区失败';
     console.error(errorMsg, e);
+    localStorage.removeItem('workspace');
     messageApi?.error(errorMsg);
     return null;
   }

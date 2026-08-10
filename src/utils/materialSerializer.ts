@@ -61,7 +61,8 @@ export const isTextMaterials = (value: unknown): value is TextMaterials => {
 export const isSerializedMaterial = (value: unknown): value is SerializedMaterial => {
   if (!value || typeof value !== "object") return false;
   const serialized = value as Record<string, unknown>;
-  return isFiniteNumber(serialized.version) && isTextMaterials(serialized.material);
+  return serialized.version === MaterialVersion.LATEST &&
+    isTextMaterials(serialized.material);
 };
 
 /**
@@ -173,8 +174,7 @@ export function upgradeMaterialToLatest(serializedData: SerializedMaterial): Ser
     //   break;
       
     default:
-      console.warn(`未知的材质数据版本: ${data.version}，尝试以当前版本解析`);
-      data.version = MaterialVersion.LATEST;
+      throw new Error(`不支持的材质数据版本: ${data.version}`);
   }
   
   return data;

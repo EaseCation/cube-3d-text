@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     Splitter,
     Alert,
@@ -107,6 +107,27 @@ const AppContent: React.FC = () => {
         }
     ]);
 
+    const preferredFallbackFontId = language === "en_US"
+        ? "Minecraft Ten"
+        : "Fusion Pixel 10px";
+    const fallbackFontId = fontsMap[preferredFallbackFontId]
+        ? preferredFallbackFontId
+        : Object.keys(fontsMap)[0];
+    const effectiveGlobalFontId = fontsMap[globalFontId]
+        ? globalFontId
+        : fallbackFontId;
+    const effectiveTexts = useMemo(() => {
+        let changed = false;
+        const normalizedTexts = texts.map(text => {
+            if (!text.fontId || fontsMap[text.fontId]) return text;
+            changed = true;
+            const textWithoutFont = { ...text };
+            delete textWithoutFont.fontId;
+            return textWithoutFont;
+        });
+        return changed ? normalizedTexts : texts;
+    }, [fontsMap, texts]);
+
     const [cameraOptions, setCameraOptions] = useState<CameraOptions>({
         fov: 75,
         userZoomFactor: 1
@@ -130,8 +151,8 @@ const AppContent: React.FC = () => {
         if (threeCanvasRef.current) {
             if (e.key === 'json') {
                 const workspace: WorkspaceData = {
-                    fontId: globalFontId,
-                    texts: texts
+                    fontId: effectiveGlobalFontId,
+                    texts: effectiveTexts
                 };
                 exportWorkspace(workspace);
                 messageApi?.success(gLang('projectExportSuccess'));
@@ -162,13 +183,13 @@ const AppContent: React.FC = () => {
             return;
         }
         const workspace: WorkspaceData = {
-            fontId: globalFontId,
-            texts: texts
+            fontId: effectiveGlobalFontId,
+            texts: effectiveTexts
         };
         saveWorkspaceToLocalStorage(workspace, messageApi);
         const timeoutId = window.setTimeout(() => setLastWorkshop(null), 0);
         return () => window.clearTimeout(timeoutId);
-    }, [globalFontId, texts, messageApi]);
+    }, [effectiveGlobalFontId, effectiveTexts, messageApi]);
 
     const handleAddText = () => {
         setTexts([
@@ -228,12 +249,20 @@ const AppContent: React.FC = () => {
             setTabActiveKey((texts.length + 1).toString());
         } else {
             if (typeof e === 'string') {
-                const index = parseInt(e);
-                if (tabActiveKey === e) {
+                const removedIndex = parseInt(e, 10) - 1;
+                const activeIndex = parseInt(tabActiveKey, 10) - 1;
+                const remainingCount = texts.length - 1;
+
+                if (remainingCount <= 0) {
                     setTabActiveKey('1');
+                } else if (activeIndex === removedIndex) {
+                    setTabActiveKey(String(Math.min(removedIndex, remainingCount - 1) + 1));
+                } else if (activeIndex > removedIndex) {
+                    setTabActiveKey(String(activeIndex));
                 }
+
                 const newTexts = [...texts];
-                newTexts.splice(index - 1, 1);
+                newTexts.splice(removedIndex, 1);
                 setTexts(newTexts);
             }
         }
@@ -303,7 +332,7 @@ const AppContent: React.FC = () => {
                                 }}
                             >
                             <SceneAndCameraSettingsPanel
-                                selectedFont={globalFontId}
+                                selectedFont={effectiveGlobalFontId}
                                 setSelectedFont={setGlobalFontId}
                                 cameraOptions={cameraOptions}
                                 setCameraOptions={setCameraOptions}
@@ -332,7 +361,7 @@ const AppContent: React.FC = () => {
                                             label: gLang("cameraSettings"),
                                             children: (
                                                 <SceneAndCameraSettingsPanel
-                                                    selectedFont={globalFontId}
+                                                    selectedFont={effectiveGlobalFontId}
                                                     setSelectedFont={setGlobalFontId}
                                                     cameraOptions={cameraOptions}
                                                     setCameraOptions={setCameraOptions}
@@ -359,10 +388,17 @@ const AppContent: React.FC = () => {
                                                             height: 26,
                                                             width: 26,
                                                         }}
-                                                        onClick={() => {
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
                                                             const newTexts = [...texts];
                                                             newTexts.splice(index, 1);
                                                             setTexts(newTexts);
+                                                            setTextPanelActiveKeys(activeKeys => activeKeys.flatMap(key => {
+                                                                const activeIndex = parseInt(key, 10) - 1;
+                                                                if (activeIndex === index) return [];
+                                                                if (activeIndex > index) return [String(activeIndex)];
+                                                                return [key];
+                                                            }));
                                                         }}
                                                     >
                                                         <DeleteOutlined style={{ opacity: 0.5 }} />
@@ -373,8 +409,8 @@ const AppContent: React.FC = () => {
                                                 <TextSettingsPanel
                                                     text={text.content}
                                                     textOptions={text.opts}
-                                                    fontId={text.fontId}
-                                                    globalFontId={globalFontId}
+                                                    fontId={text.fontId && fontsMap[text.fontId] ? text.fontId : undefined}
+                                                    globalFontId={effectiveGlobalFontId}
                                                     onTextChange={(newText) => {
                                                         const newTexts = [...texts];
                                                         newTexts[index].content = newText;
@@ -430,10 +466,10 @@ const AppContent: React.FC = () => {
                             ref={threeCanvasRef}
                             cameraOptions={cameraOptions}
                             setCameraOptions={setCameraOptions}
-                            texts={texts}
-                            globalFontId={globalFontId}
+                            texts={effectiveTexts}
+                            globalFontId={effectiveGlobalFontId}
                             fontsMap={fontsMap}
-                            globalTextureYOffset={builtinFontsTextureYOffset[globalFontId] ?? 0}
+                            globalTextureYOffset={builtinFontsTextureYOffset[effectiveGlobalFontId] ?? 0}
                         />
                         <Flex gap={"small"} style={{ position: "absolute", top: 20, right: 20, zIndex: 1 }}>
                             <Button
@@ -604,6 +640,7 @@ const AppContent: React.FC = () => {
                                 {
                                     texts.map((text, index) => (
                                         <Card
+                                            key={String(index + 1)}
                                             style={{
                                                 display: tabActiveKey === String(index + 1) ? "block" : "none",
                                                 overflow: "auto",
@@ -619,8 +656,8 @@ const AppContent: React.FC = () => {
                                             <TextSettingsPanel
                                                 text={text.content}
                                                 textOptions={text.opts}
-                                                fontId={text.fontId}
-                                                globalFontId={globalFontId}
+                                                fontId={text.fontId && fontsMap[text.fontId] ? text.fontId : undefined}
+                                                globalFontId={effectiveGlobalFontId}
                                                 onTextChange={(newText) => {
                                                     const newTexts = [...texts];
                                                     newTexts[index].content = newText;

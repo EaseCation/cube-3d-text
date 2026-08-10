@@ -41,7 +41,12 @@ const ThreeScene = forwardRef<ThreeSceneHandle, ThreeSceneProps>(({ texts, globa
     useEffect(() => {
         // 收集需要加载的所有字体ID
         const fontsToLoad = new Set<string>();
-        fontsToLoad.add(globalFontId); // 全局字体始终需要加载
+        const fallbackFontId = fontsMap["Minecraft Ten"]
+            ? "Minecraft Ten"
+            : Object.keys(fontsMap).find(fontId => typeof fontsMap[fontId] === "string");
+        const effectiveGlobalFontId = fontsMap[globalFontId] ? globalFontId : fallbackFontId;
+        if (fallbackFontId) fontsToLoad.add(fallbackFontId);
+        if (effectiveGlobalFontId) fontsToLoad.add(effectiveGlobalFontId);
         
         // 收集每个文本的特定字体
         texts.forEach(text => {
@@ -80,6 +85,14 @@ const ThreeScene = forwardRef<ThreeSceneHandle, ThreeSceneProps>(({ texts, globa
                         [fontId]: font
                     }));
                     cachedFonts[fontUrl] = font;
+                }).catch(error => {
+                    console.error(`Custom font load failed (${fontId}):`, error);
+                    messageApi?.open({
+                        key: `loadingFont-${fontId}`,
+                        type: 'error',
+                        content: gLang('customFont.failed'),
+                        duration: 3,
+                    });
                 });
             } else {
                 // 从网络加载字体
@@ -112,6 +125,15 @@ const ThreeScene = forwardRef<ThreeSceneHandle, ThreeSceneProps>(({ texts, globa
                                 duration: 60,
                             });
                         }
+                    },
+                    (error) => {
+                        console.error(`Font load failed (${fontId}):`, error);
+                        messageApi?.open({
+                            key: `loadingFont-${fontId}`,
+                            type: 'error',
+                            content: gLang('customFont.failed'),
+                            duration: 3,
+                        });
                     }
                 );
             }
@@ -132,8 +154,15 @@ const ThreeScene = forwardRef<ThreeSceneHandle, ThreeSceneProps>(({ texts, globa
                 <group ref={groupRef}>
                     {texts.map((text, index) => {
                         // 获取该文本应该使用的字体ID和实例
-                        const effectiveFontId = text.fontId || globalFontId;
-                        const font = loadedFonts[effectiveFontId];
+                        const fallbackFontId = fontsMap["Minecraft Ten"]
+                            ? "Minecraft Ten"
+                            : Object.keys(fontsMap).find(fontId => typeof fontsMap[fontId] === "string");
+                        const effectiveGlobalFontId = fontsMap[globalFontId] ? globalFontId : fallbackFontId;
+                        const effectiveFontId = text.fontId && fontsMap[text.fontId]
+                            ? text.fontId
+                            : effectiveGlobalFontId;
+                        const font = (effectiveFontId && loadedFonts[effectiveFontId]) ||
+                            (fallbackFontId && loadedFonts[fallbackFontId]);
                         
                         // 如果字体还未加载完成，不渲染该文本
                         if (!font) return null;
