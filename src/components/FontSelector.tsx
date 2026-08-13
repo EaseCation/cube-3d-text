@@ -84,7 +84,7 @@ const FontSelector: FC<FontSelectorProps> = ({
       style={{ width: "100%" }}
       value={value}
       onChange={onChange}
-      dropdownRender={menu => (
+      popupRender={menu => (
         <>
           {menu}
           {showUploadButton && onUploadClick && (

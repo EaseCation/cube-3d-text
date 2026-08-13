@@ -29,6 +29,7 @@ import {
     SettingOutlined,
     GithubOutlined,
     FileTextOutlined,
+    EllipsisOutlined,
     MoonOutlined,
     SunOutlined
 } from "@ant-design/icons";
@@ -341,7 +342,7 @@ const AppContent: React.FC<AppContentProps> = ({ themeMode, onThemeToggle }) => 
                         </Button>
                     </Popover>
                 )}
-                <Splitter layout={isMobile ? 'vertical' : 'horizontal'} className="editor-splitter">
+                <Splitter orientation={isMobile ? 'vertical' : 'horizontal'} className="editor-splitter">
                     {!isMobile && (
                         <Splitter.Panel
                             className="settings-sidebar"
@@ -480,38 +481,41 @@ const AppContent: React.FC<AppContentProps> = ({ themeMode, onThemeToggle }) => 
                                 {gLang('resetCamera')}
                             </Button>
                             <HappyProvider>
-                                <Dropdown.Button
-                                    type="primary"
-                                    menu={{
-                                        items: [
-                                            {
-                                                key: 'json',
-                                                label: gLang('output.json'),
-                                                icon: <FileTextOutlined />
-                                            },
-                                            {
-                                                key: 'glb',
-                                                label: gLang('output.glb'),
-                                                icon: <AppstoreOutlined />
-                                            },
-                                            {
-                                                key: 'obj',
-                                                label: gLang('output.obj'),
-                                                icon: <BookOutlined />
-                                            },
-                                            {
-                                                key: 'stl',
-                                                label: gLang('output.stl'),
-                                                icon: <CompassOutlined />
-                                            },
-                                        ],
-                                        onClick: handleOutputOption
-                                    }}
-                                    onClick={handleScreenshot}
-                                >
-                                    <CameraOutlined />
-                                    {gLang('screenshot')}
-                                </Dropdown.Button>
+                                <Space.Compact block className="ant-dropdown-button">
+                                    <Button type="primary" onClick={handleScreenshot}>
+                                        <CameraOutlined />
+                                        {gLang('screenshot')}
+                                    </Button>
+                                    <Dropdown
+                                        menu={{
+                                            items: [
+                                                {
+                                                    key: 'json',
+                                                    label: gLang('output.json'),
+                                                    icon: <FileTextOutlined />
+                                                },
+                                                {
+                                                    key: 'glb',
+                                                    label: gLang('output.glb'),
+                                                    icon: <AppstoreOutlined />
+                                                },
+                                                {
+                                                    key: 'obj',
+                                                    label: gLang('output.obj'),
+                                                    icon: <BookOutlined />
+                                                },
+                                                {
+                                                    key: 'stl',
+                                                    label: gLang('output.stl'),
+                                                    icon: <CompassOutlined />
+                                                },
+                                            ],
+                                            onClick: handleOutputOption
+                                        }}
+                                    >
+                                        <Button type="primary" icon={<EllipsisOutlined />} />
+                                    </Dropdown>
+                                </Space.Compact>
                             </HappyProvider>
 
                         </Flex>

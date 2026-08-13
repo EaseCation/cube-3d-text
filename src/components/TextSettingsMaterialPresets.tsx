@@ -126,7 +126,7 @@ const TextSettingsMaterialPresets: React.FC<TextSettingsMaterialPresetsProps> = 
         <Card size={'small'} title={gLang('materialPresets')}>
             {isLoading ? (
                 <Flex justify="center" align="center" style={{ padding: '20px' }}>
-                    <Spin tip={gLang('loadingMaterials')}>
+                    <Spin description={gLang('loadingMaterials')}>
                         <div style={{ minHeight: '60px' }} />
                     </Spin>
                 </Flex>
