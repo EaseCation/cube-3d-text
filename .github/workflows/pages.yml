@@ -37,6 +37,8 @@ jobs:
           node-version: '22'
       - name: Install Dependencies
         run: yarn install --frozen-lockfile
+      - name: Verify static assets
+        run: yarn check:static-assets --remote
       - name: Build
         run: yarn build
       - name: Setup Pages
