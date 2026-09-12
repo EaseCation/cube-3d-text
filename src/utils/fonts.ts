@@ -1,11 +1,16 @@
+import manifest from '../../cube-static-assets.json';
+
+const fontUrl = (filename: keyof typeof manifest.files): string =>
+    `${manifest.baseUrl}/${manifest.files[filename].object}`;
+
 export const builtinFontsMap: { [name: string]: string } = {
-    "汉仪力量黑(简)": "font/HYLiLiangHeiJ_Regular.json",
-    "锐字太空历险像素简": "font/REEJI-TaikoMagicGB-Flash_Regular.json",
-    "Minecraft Ten": "font/Minecraft_Ten_Regular.json",
-    "Fusion Pixel 8px": "font/Fusion_Pixel_8px_Proportional_zh_hans_Regular.json",
-    "Fusion Pixel 10px": "font/Fusion_Pixel_10px_Proportional_zh_hans_Regular.json",
-    "得意黑": "font/Smiley_Sans_Oblique_Regular.json",
-    "Unifont ASCII": "font/Unifont_ASCII_Regular.json"
+    "汉仪力量黑(简)": fontUrl("/font/HYLiLiangHeiJ_Regular.json"),
+    "锐字太空历险像素简": fontUrl("/font/REEJI-TaikoMagicGB-Flash_Regular.json"),
+    "Minecraft Ten": fontUrl("/font/Minecraft_Ten_Regular.json"),
+    "Fusion Pixel 8px": fontUrl("/font/Fusion_Pixel_8px_Proportional_zh_hans_Regular.json"),
+    "Fusion Pixel 10px": fontUrl("/font/Fusion_Pixel_10px_Proportional_zh_hans_Regular.json"),
+    "得意黑": fontUrl("/font/Smiley_Sans_Oblique_Regular.json"),
+    "Unifont ASCII": fontUrl("/font/Unifont_ASCII_Regular.json")
 };
 
 export const builtinFontsTextureYOffset: { [name: string]: number } = {

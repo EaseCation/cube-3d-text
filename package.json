@@ -8,6 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "tsx --test tests/*.test.ts",
+    "check:static-assets": "node scripts/check-static-assets.mjs",
+    "static-assets:pull": "node scripts/static-assets/pull-fonts.mjs",
+    "static-assets:publish": "node scripts/static-assets/manage-fonts.mjs --source .static-assets/font --write --publish",
     "preview": "vite preview"
   },
   "dependencies": {

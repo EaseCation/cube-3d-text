@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "bucket": "ec-static-assets",
+  "region": "cn-hangzhou",
+  "objectPrefix": "cube-3d-text/fonts",
+  "baseUrl": "https://static.easecation.net/cube-3d-text/fonts",
+  "fileCount": 7,
+  "totalBytes": 41468104,
+  "treeSha256": "509f3208c66412a1b774eb51ec2016d3f06e216e5d9b57462a1fd52ed8190a90",
+  "files": {
+    "/font/Fusion_Pixel_10px_Proportional_zh_hans_Regular.json": {
+      "object": "objects/8ef60f0c5defae081894cb2ee33b5afe94295bd549923083cf617a5b5b6b7a63.json",
+      "size": 14021000,
+      "sha256": "8ef60f0c5defae081894cb2ee33b5afe94295bd549923083cf617a5b5b6b7a63"
+    },
+    "/font/Fusion_Pixel_8px_Proportional_zh_hans_Regular.json": {
+      "object": "objects/4cb8e28dbed80a782fd2125d423b0e1b184268bb820525aabd881d23ea4b789a.json",
+      "size": 10264505,
+      "sha256": "4cb8e28dbed80a782fd2125d423b0e1b184268bb820525aabd881d23ea4b789a"
+    },
+    "/font/HYLiLiangHeiJ_Regular.json": {
+      "object": "objects/ad1bf36435ddfb866f9bb1733a2c9138fc682241849d60e105e98839764ef315.json",
+      "size": 4988009,
+      "sha256": "ad1bf36435ddfb866f9bb1733a2c9138fc682241849d60e105e98839764ef315"
+    },
+    "/font/Minecraft_Ten_Regular.json": {
+      "object": "objects/93a7de6f5dca907f368beaf5d32d536c812e59c93be4d8d79eb24a5a8a7eb5cb.json",
+      "size": 127608,
+      "sha256": "93a7de6f5dca907f368beaf5d32d536c812e59c93be4d8d79eb24a5a8a7eb5cb"
+    },
+    "/font/REEJI-TaikoMagicGB-Flash_Regular.json": {
+      "object": "objects/c25581a55b9572e64e4173678fd152908649c8d96c74f21321d26e7ea239a122.json",
+      "size": 3279675,
+      "sha256": "c25581a55b9572e64e4173678fd152908649c8d96c74f21321d26e7ea239a122"
+    },
+    "/font/Smiley_Sans_Oblique_Regular.json": {
+      "object": "objects/8bbfddb4cc83a83c8c5b4f363d87b1ff32c74f0d7222044b633c47d2eb711c37.json",
+      "size": 8759063,
+      "sha256": "8bbfddb4cc83a83c8c5b4f363d87b1ff32c74f0d7222044b633c47d2eb711c37"
+    },
+    "/font/Unifont_ASCII_Regular.json": {
+      "object": "objects/cc5122f2094ab1e46b88306831476e166d0d3d326d76a0e33179d0865d61c775.json",
+      "size": 28244,
+      "sha256": "cc5122f2094ab1e46b88306831476e166d0d3d326d76a0e33179d0865d61c775"
+    }
+  }
+}
