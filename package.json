@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@ant-design/happy-work-theme": "^2.0.0",
-    "@babel/runtime": "^7.29.7",
+    "@babel/runtime": "^8.0.5",
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
     "antd": "^6.5.4",
