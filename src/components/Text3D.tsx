@@ -171,27 +171,21 @@ const Text3D = forwardRef<THREE.Group, Text3DProps>(({
 
     const [overlayMaterial, setOverlayMaterial] = useState<THREE.Material[]>();
 
-    // 创建一个组包含主网格
-    const group = useMemo(() => {
-        const grp = new THREE.Group();
-        grp.add(mainMesh);
-        // overlayMesh，用于实现overlay的材质
-        if (content.length > 0 && opts.overlay) {
-            const overlayMesh = mainMesh.clone();
-            overlayMesh.geometry = mainMesh.geometry.clone();
-            if (overlayMaterial) overlayMesh.material = overlayMaterial;
-            // assignFrontUV(overlayMesh.geometry as THREE.BufferGeometry);
-            overlayMesh.renderOrder = 3;
-            grp.add(overlayMesh);
-        }
-        grp.add(outlineMesh);
-        grp.position.set(...position);
-        grp.rotation.set(...rotation);
-        return grp;
-    }, [content.length, mainMesh, opts.overlay, outlineMesh, overlayMaterial, position, rotation]);
+    const overlayMesh = useMemo(() => {
+        if (!content.length || !opts.overlay) return null;
+        const mesh = mainMesh.clone();
+        mesh.geometry = mainMesh.geometry.clone();
+        if (overlayMaterial) mesh.material = overlayMaterial;
+        mesh.renderOrder = 3;
+        return mesh;
+    }, [content.length, mainMesh, opts.overlay, overlayMaterial]);
 
     return <>
-        <primitive object={group} ref={ref} />
+        <group ref={ref} position={position} rotation={rotation}>
+            <primitive object={mainMesh} />
+            {overlayMesh && <primitive object={overlayMesh} />}
+            <primitive object={outlineMesh} />
+        </group>
         {opts.overlay && (
             <Html style={{ display: "none" }}>
                 <OverlayHelper

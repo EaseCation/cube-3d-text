@@ -8,6 +8,7 @@ import ThreeScene, { ThreeSceneHandle } from "./ThreeScene.tsx";
 import { GLTFExporter, OBJExporter, STLExporter, OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useMessage } from "../contexts/MessageContext.tsx";
 import { useLanguage } from "../language.tsx";
+import { renderTitlePng } from "../utils/renderTitlePng";
 
 // 相机配置常量
 const CAMERA_CONSTANTS = {
@@ -79,12 +80,14 @@ export interface ThreeCanvasHandle {
     takeScreenshot: () => void;
     resetCamera: () => void;
     exportScene: (format: "glb" | "gltf" | "obj" | "stl") => void;
+    renderPng: (options: { revision: number; lineCount: number; width: number; height: number; padding: number }) => Promise<Blob>;
 }
 
 interface ThreeCanvasProps {
     cameraOptions: CameraOptions;
     setCameraOptions: (opts: CameraOptions) => void;
     texts: Text3DData[];
+    renderRevision: number;
     globalFontId: string;
     fontsMap: Record<string, string>;
     globalTextureYOffset: number;
@@ -183,6 +186,7 @@ interface ScreenBoundingBox {
 
 interface CanvasToolsProps extends ScreenshotProps {
     canvasRef: React.ForwardedRef<ThreeCanvasHandle>;
+    sceneRef: React.RefObject<ThreeSceneHandle | null>;
     cameraOptions: CameraOptions;
     setCameraOptions: (opts: CameraOptions) => void;
     computeScreenBoundingBox: (
@@ -195,6 +199,7 @@ interface CanvasToolsProps extends ScreenshotProps {
 
 const CanvasTools: React.FC<CanvasToolsProps> = ({
     canvasRef,
+    sceneRef,
     orbitRef,
     cameraOptions,
     setCameraOptions,
@@ -206,6 +211,41 @@ const CanvasTools: React.FC<CanvasToolsProps> = ({
     const { gLang } = useLanguage();
 
     useImperativeHandle(canvasRef, () => ({
+        renderPng: async ({ revision, lineCount, width, height, padding }) => {
+            const deadline = Date.now() + 20000;
+            let lastState = "scene unavailable";
+            while (Date.now() < deadline) {
+                const group = sceneRef.current?.groupRef.current;
+                lastState = group
+                    ? `revision=${String(group.userData.renderRevision)}, fontsReady=${String(group.userData.fontsReady)}, children=${group.children.length}, tree=${group.children.map(child => `${child.type}:${child.children.length}`).join("|")}`
+                    : "scene unavailable";
+                if (group?.userData.renderRevision === revision &&
+                    group.userData.fontsReady &&
+                    group.children.length === lineCount) {
+                    let ready = true;
+                    let meshCount = 0;
+                    group.traverse((object) => {
+                        const mesh = object as THREE.Mesh;
+                        if (!mesh.isMesh) return;
+                        meshCount++;
+                        const geometry = mesh.geometry as THREE.BufferGeometry;
+                        if (!geometry.getAttribute("position")?.count) ready = false;
+                        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+                        for (const material of materials) {
+                            if (!(material instanceof THREE.MeshBasicMaterial) || !material.map) continue;
+                            const image = material.map.image as { width?: number; height?: number; complete?: boolean } | undefined;
+                            if (!image?.width || !image?.height || image.complete === false) ready = false;
+                        }
+                    });
+                    if (ready && meshCount >= lineCount) {
+                        return renderTitlePng(gl, scene, group, width, height, padding);
+                    }
+                    lastState += `, meshes=${meshCount}, texturesReady=${ready}`;
+                }
+                await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+            }
+            throw new Error(`Timed out waiting for title fonts, geometry, or textures (${lastState})`);
+        },
         takeScreenshot: () => {
             gl.render(scene, camera);
             const bounding = computeScreenBoundingBox(scene, camera, gl);
@@ -265,7 +305,7 @@ const CanvasTools: React.FC<CanvasToolsProps> = ({
 };
 
 const ThreeCanvas = forwardRef<ThreeCanvasHandle, ThreeCanvasProps>((props, ref) => {
-    const { texts, cameraOptions, setCameraOptions, globalFontId, fontsMap, globalTextureYOffset } = props;
+    const { texts, renderRevision, cameraOptions, setCameraOptions, globalFontId, fontsMap, globalTextureYOffset } = props;
     const orbitRef = useRef<OrbitControlsImpl>(null);
     const threeSceneRef = useRef<ThreeSceneHandle>(null);
     const messageApi = useMessage();
@@ -494,6 +534,7 @@ const ThreeCanvas = forwardRef<ThreeCanvasHandle, ThreeCanvasProps>((props, ref)
         >
             <CanvasTools
                 canvasRef={ref}
+                sceneRef={threeSceneRef}
                 orbitRef={orbitRef}
                 cameraOptions={cameraOptions}
                 setCameraOptions={setCameraOptions}
@@ -509,6 +550,7 @@ const ThreeCanvas = forwardRef<ThreeCanvasHandle, ThreeCanvasProps>((props, ref)
             <ThreeScene
                 ref={threeSceneRef}
                 texts={texts}
+                renderRevision={renderRevision}
                 globalFontId={globalFontId}
                 fontsMap={fontsMap}
                 globalTextureYOffset={globalTextureYOffset}
