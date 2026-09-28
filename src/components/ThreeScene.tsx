@@ -12,6 +12,7 @@ import customFontsStore from "../utils/localForageInstance.ts";
 
 interface ThreeSceneProps {
     texts: Text3DData[];
+    renderRevision: number;
     globalFontId: string;
     fontsMap: Record<string, string>;
     globalTextureYOffset: number;
@@ -23,7 +24,7 @@ export interface ThreeSceneHandle {
     groupRef: React.RefObject<THREE.Group | null>;
 }
 
-const ThreeScene = forwardRef<ThreeSceneHandle, ThreeSceneProps>(({ texts, globalFontId, fontsMap, globalTextureYOffset }, ref) => {
+const ThreeScene = forwardRef<ThreeSceneHandle, ThreeSceneProps>(({ texts, renderRevision, globalFontId, fontsMap, globalTextureYOffset }, ref) => {
 
     const groupRef = useRef<THREE.Group>(null);
 
@@ -151,7 +152,13 @@ const ThreeScene = forwardRef<ThreeSceneHandle, ThreeSceneProps>(({ texts, globa
         <>
             {/* 创建文本网格 */}
             <Suspense fallback={<Html>Loading...</Html>}>
-                <group ref={groupRef}>
+                <group
+                    ref={groupRef}
+                    userData={{
+                        renderRevision,
+                        fontsReady: texts.every(text => Boolean(loadedFonts[text.fontId || globalFontId]))
+                    }}
+                >
                     {texts.map((text, index) => {
                         // 获取该文本应该使用的字体ID和实例
                         const fallbackFontId = fontsMap["Minecraft Ten"]

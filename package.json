@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "tsx --test tests/*.test.ts",
+    "test:e2e": "yarn static-assets:pull && playwright test",
     "check:static-assets": "node scripts/check-static-assets.mjs",
     "static-assets:pull": "node scripts/static-assets/pull-fonts.mjs",
     "static-assets:publish": "node scripts/static-assets/manage-fonts.mjs --source .static-assets/font --write --publish",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@types/opentype.js": "^1.3.10",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

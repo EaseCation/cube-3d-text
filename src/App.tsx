@@ -30,7 +30,9 @@ import {
     GithubOutlined,
     FileTextOutlined,
     MoonOutlined,
-    SunOutlined
+    SunOutlined,
+    RobotOutlined,
+    CopyOutlined
 } from "@ant-design/icons";
 import { HappyProvider } from '@ant-design/happy-work-theme';
 import ThreeCanvas, { ThreeCanvasHandle } from "./components/ThreeCanvas";
@@ -50,12 +52,23 @@ import {
 } from "./utils/workspaceIO";
 import { FontProvider, useFonts } from "./contexts/FontContext";
 import { MaterialProvider } from './contexts/MaterialContext';
+import { getTitleCapabilities, prepareTitle, TITLE_DEFAULTS } from "./utils/titleRender";
+import skillEnglish from "../skills/cube-3d-text/SKILL.md?raw";
+import skillChinese from "../skills/cube-3d-text/locales/zh-CN.md?raw";
+import skillJapanese from "../skills/cube-3d-text/locales/ja-JP.md?raw";
 import {
     applyTheme,
     createAppThemeConfig,
     getInitialTheme,
     ThemeMode
 } from "./utils/theme";
+
+const renderMode = new URLSearchParams(window.location.search).get("mode") === "render";
+const skillByLanguage: Record<string, string> = {
+    zh_CN: skillChinese,
+    en_US: skillEnglish,
+    ja_JP: skillJapanese,
+};
 
 interface AppContentProps {
     themeMode: ThemeMode;
@@ -145,11 +158,16 @@ const AppContent: React.FC<AppContentProps> = ({ themeMode, onThemeToggle }) => 
         fov: 75,
         userZoomFactor: 1
     });
+    const [renderRevision, setRenderRevision] = useState(0);
+    const renderRevisionRef = useRef(0);
+    const renderingRef = useRef(false);
+    const lastRenderUrlRef = useRef<string | null>(null);
+    const [skillOpen, setSkillOpen] = useState(false);
 
     const [textPanelActiveKeys, setTextPanelActiveKeys] = useState<string[]>(['1']);
 
     const [lastWorkshop, setLastWorkshop] = useState<WorkspaceData | null>(
-        () => loadWorkspaceFromLocalStorage(messageApi)
+        () => renderMode ? null : loadWorkspaceFromLocalStorage(messageApi)
     );
 
     const threeCanvasRef = useRef<ThreeCanvasHandle>(null);
@@ -184,6 +202,7 @@ const AppContent: React.FC<AppContentProps> = ({ themeMode, onThemeToggle }) => 
     const autosaveReadyRef = useRef(false);
 
     useEffect(() => {
+        if (renderMode) return;
         const timeoutId = window.setTimeout(() => {
             autosaveReadyRef.current = true;
         }, 5000);
@@ -192,6 +211,7 @@ const AppContent: React.FC<AppContentProps> = ({ themeMode, onThemeToggle }) => 
     }, []);
 
     useEffect(() => {
+        if (renderMode) return;
         if (!autosaveReadyRef.current) {
             return;
         }
@@ -203,6 +223,48 @@ const AppContent: React.FC<AppContentProps> = ({ themeMode, onThemeToggle }) => 
         const timeoutId = window.setTimeout(() => setLastWorkshop(null), 0);
         return () => window.clearTimeout(timeoutId);
     }, [effectiveGlobalFontId, effectiveTexts, messageApi]);
+
+    useEffect(() => {
+        if (!renderMode) return;
+        window.cube3DText = {
+            getCapabilities: getTitleCapabilities,
+            renderTitle: async (spec) => {
+                if (renderingRef.current) throw new Error("A title render is already in progress");
+                renderingRef.current = true;
+                try {
+                    const prepared = await prepareTitle(spec);
+                    const canvas = threeCanvasRef.current;
+                    if (!canvas) throw new Error("The 3D canvas is not ready");
+                    const revision = ++renderRevisionRef.current;
+                    setGlobalFontId(TITLE_DEFAULTS.fontId);
+                    setTexts(prepared.texts);
+                    setRenderRevision(revision);
+                    const blob = await canvas.renderPng({
+                        revision,
+                        lineCount: prepared.texts.length,
+                        width: prepared.width,
+                        height: prepared.height,
+                        padding: prepared.padding,
+                    });
+                    const fileName = "cube-3d-text.png";
+                    const url = URL.createObjectURL(blob);
+                    if (lastRenderUrlRef.current) URL.revokeObjectURL(lastRenderUrlRef.current);
+                    lastRenderUrlRef.current = url;
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = fileName;
+                    link.click();
+                    return { width: prepared.width, height: prepared.height, fileName, downloadUrl: url };
+                } finally {
+                    renderingRef.current = false;
+                }
+            },
+        };
+        return () => {
+            delete window.cube3DText;
+            if (lastRenderUrlRef.current) URL.revokeObjectURL(lastRenderUrlRef.current);
+        };
+    }, []);
 
     const handleAddText = () => {
         setTexts([
@@ -311,6 +373,32 @@ const AppContent: React.FC<AppContentProps> = ({ themeMode, onThemeToggle }) => 
                 >
                     {gLang('chinaMirrorNotice')}
                 </Modal>
+                <Modal
+                    title={gLang('aiSkill.title')}
+                    open={skillOpen}
+                    onCancel={() => setSkillOpen(false)}
+                    width="min(720px, calc(100vw - 32px))"
+                    footer={
+                        <Button
+                            type="primary"
+                            icon={<CopyOutlined />}
+                            onClick={async () => {
+                                try {
+                                    await navigator.clipboard.writeText(skillByLanguage[language] || skillEnglish);
+                                    messageApi?.success(gLang('aiSkill.copySuccess'));
+                                } catch {
+                                    messageApi?.error(gLang('aiSkill.copyFailed'));
+                                }
+                            }}
+                        >
+                            {gLang('aiSkill.copy')}
+                        </Button>
+                    }
+                >
+                    <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: "60vh", overflow: "auto", color: "inherit", fontSize: 13, lineHeight: 1.5 }}>
+                        {skillByLanguage[language] || skillEnglish}
+                    </pre>
+                </Modal>
                 {isMobile && (
                     <Popover
                         title={gLang('cameraSettings')}
@@ -336,7 +424,7 @@ const AppContent: React.FC<AppContentProps> = ({ themeMode, onThemeToggle }) => 
                         trigger="click"
                         placement="bottomRight"
                     >
-                        <Button style={{ position: "absolute", left: 20, top: 20, zIndex: 1 }}>
+                        <Button aria-label={gLang('cameraSettings')} style={{ position: "absolute", left: 20, top: 20, zIndex: 1 }}>
                             <SettingOutlined />
                         </Button>
                     </Popover>
@@ -467,51 +555,59 @@ const AppContent: React.FC<AppContentProps> = ({ themeMode, onThemeToggle }) => 
                             cameraOptions={cameraOptions}
                             setCameraOptions={setCameraOptions}
                             texts={effectiveTexts}
+                            renderRevision={renderRevision}
                             globalFontId={effectiveGlobalFontId}
                             fontsMap={fontsMap}
                             globalTextureYOffset={builtinFontsTextureYOffset[effectiveGlobalFontId] ?? 0}
                         />
                         <Flex gap={"small"} style={{ position: "absolute", top: 20, right: 20, zIndex: 1 }}>
+                            <Tooltip title={gLang('aiSkill.tooltip')}>
+                                <Button icon={<RobotOutlined />} onClick={() => setSkillOpen(true)} aria-label={gLang('aiSkill.title')}>
+                                    {!isMobile && gLang('aiSkill.button')}
+                                </Button>
+                            </Tooltip>
                             <Button
                                 type="default"
                                 icon={<ReloadOutlined />}
                                 onClick={handleResetCamera}
                             >
-                                {gLang('resetCamera')}
+                                {!isMobile && gLang('resetCamera')}
                             </Button>
                             <HappyProvider>
-                                <Dropdown.Button
-                                    type="primary"
-                                    menu={{
-                                        items: [
-                                            {
-                                                key: 'json',
-                                                label: gLang('output.json'),
-                                                icon: <FileTextOutlined />
-                                            },
-                                            {
-                                                key: 'glb',
-                                                label: gLang('output.glb'),
-                                                icon: <AppstoreOutlined />
-                                            },
-                                            {
-                                                key: 'obj',
-                                                label: gLang('output.obj'),
-                                                icon: <BookOutlined />
-                                            },
-                                            {
-                                                key: 'stl',
-                                                label: gLang('output.stl'),
-                                                icon: <CompassOutlined />
-                                            },
-                                        ],
-                                        onClick: handleOutputOption
-                                    }}
-                                    onClick={handleScreenshot}
-                                >
-                                    <CameraOutlined />
-                                    {gLang('screenshot')}
-                                </Dropdown.Button>
+                                <Tooltip title={isMobile ? gLang('screenshot') : undefined}>
+                                    <Dropdown.Button
+                                        type="primary"
+                                        menu={{
+                                            items: [
+                                                {
+                                                    key: 'json',
+                                                    label: gLang('output.json'),
+                                                    icon: <FileTextOutlined />
+                                                },
+                                                {
+                                                    key: 'glb',
+                                                    label: gLang('output.glb'),
+                                                    icon: <AppstoreOutlined />
+                                                },
+                                                {
+                                                    key: 'obj',
+                                                    label: gLang('output.obj'),
+                                                    icon: <BookOutlined />
+                                                },
+                                                {
+                                                    key: 'stl',
+                                                    label: gLang('output.stl'),
+                                                    icon: <CompassOutlined />
+                                                },
+                                            ],
+                                            onClick: handleOutputOption
+                                        }}
+                                        onClick={handleScreenshot}
+                                    >
+                                        <CameraOutlined />
+                                        {!isMobile && gLang('screenshot')}
+                                    </Dropdown.Button>
+                                </Tooltip>
                             </HappyProvider>
 
                         </Flex>
